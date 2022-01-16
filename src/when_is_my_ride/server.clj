@@ -6,7 +6,8 @@
             [ring.adapter.jetty :as jetty]
             [muuntaja.interceptor]
             [manifold.deferred :as d]
-            [systemic.core :as systemic :refer [defsys]]))
+            [systemic.core :as systemic :refer [defsys]]
+            [when-is-my-ride.env :as env]))
 
 (defn interceptor [f x]
   {:enter (fn [ctx] (f (update-in ctx [:request :via] (fnil conj []) {:enter x})))
@@ -20,25 +21,26 @@
 (def <sync> identity)
 (def <deferred> d/success-deferred)
 
-(defsys app
-  :start (http/ring-handler
-          (http/router
-           ["/api"
-            {:interceptors [(interceptor <sync> :api)]}
-            ["/sync"
-             {:interceptors [(interceptor <sync> :sync)]
-              :get {:interceptors [(interceptor <sync> :get)]
-                    :handler (handler <sync>)}}]
-            ["/deferred"
-             {:interceptors [(interceptor <deferred> :deferred)]
-              :get {:interceptors [(interceptor <deferred> :get)]
-                    :handler (handler <deferred>)}}]])
+(def app
+  (http/ring-handler
+   (http/router
+    ["/api"
+     {:interceptors [(interceptor <sync> :api)]}
+     ["/sync"
+      {:interceptors [(interceptor <sync> :sync)]
+       :get {:interceptors [(interceptor <sync> :get)]
+             :handler (handler <sync>)}}]
+     ["/deferred"
+      {:interceptors [(interceptor <deferred> :deferred)]
+       :get {:interceptors [(interceptor <deferred> :get)]
+             :handler (handler <deferred>)}}]])
 
-          (ring/create-default-handler)
-          {:executor reitit.interceptor.sieppari/executor
-           :interceptors [(muuntaja.interceptor/format-interceptor)]}))
+   (ring/create-default-handler)
+   {:executor reitit.interceptor.sieppari/executor
+    :interceptors [(muuntaja.interceptor/format-interceptor)]}))
 
 (defsys *server* []
+  :deps [env/file-env]
   :clojure
   (let [server (jetty/run-jetty #'app {:port 3000, :join? false, :async? true})]
     {:value server
