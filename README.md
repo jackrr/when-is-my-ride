@@ -1,39 +1,45 @@
-# when-is-my-ride
+# When is my ride?
 
-FIXME: description
+A simple app that enables. This app is free to use and hosted at
+https://whenismyride.com.
 
-## Installation
+## Contributions
 
-Download from http://example.com/FIXME.
+Contributions are welcome. Feel free to open an issue describing the changes
+you'd like to see and we'll go from there.
 
-## Usage
+## Running the app
 
-FIXME: explanation
+You'll need a clojure environment and leiningen installed.
 
-    $ java -jar when-is-my-ride-0.1.0-standalone.jar [args]
+### Environment
 
-## Options
+Acquire a free MTA access token at https://new.mta.info/developers. In
+development add a file called `resources/secrets.edn` with the following:
 
-FIXME: listing of options this app accepts.
+``` clojure
+{"MTA_API_KEY" "YOUR_TOKEN_HERE"}
+```
 
-## Examples
+In production set an `MTA_API_KEY` env var containing the token.
 
-...
+## Data feeds
 
-### Bugs
+At this time, all data sources use a combination of GTFS static and GTFS
+realtime.
 
-...
+This application is built with static data in resources/.
 
-### Any Other Sections
-### That You Think
-### Might be Useful
+NYC Ferry data is fully public and can be found at
+https://www.ferry.nyc/developer-tools/. MTA data requires a free access token
+and can be found at https://new.mta.info/developers.
 
 ## License
 
-Copyright © 2022 FIXME
+Copyright © 2022 Jack Ratner
 
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
+This program and the accompanying materials are made available under the terms
+of the Eclipse Public License 2.0 which is available at
 http://www.eclipse.org/legal/epl-2.0.
 
 This Source Code may also be made available under the following Secondary
