@@ -5,7 +5,8 @@
             [when-is-my-ride.db.mta :as mta]))
 
 (def schema
-  {:complex/id {:db/cardinality :db.cardinality/one
+  {:initialized-at {:db/cardinality :db.cardinality/one}
+   :complex/id {:db/cardinality :db.cardinality/one
                 :db/unique :db.unique/identity}
    :complex/name {:db/cardinality :db.cardinality/one}
 
@@ -37,19 +38,33 @@
                      :db/cardinality :db.cardinality/one}
    :trip-stop/at {:db/cardinality :db.cardinality/one}})
 
+(def STALE_THRESHOLD (* 1000 30))
+
 (defn- new-conn []
   (d/create-conn schema))
 
-(def ^:private conn (d/create-conn schema))
+(def ^:private conn (new-conn))
 
 (defn- refresh-db! []
   (let [next (new-conn)]
     (mta/load-all next)
+    (d/transact! next [{:initialized-at (System/currentTimeMillis)}])
     (d/reset-conn! conn @next))
   true)
 
-(defn- get-db []
-  ;; TODO: ensure up to date within 30s, if not, call refresh-db!
+(defn- get-db
+  "Provide conn to db of transit data, refreshed if older than threshold"
+  []
+  (let [last-initialized
+        (some-> (d/q '[:find (max ?iat)
+                       :where
+                       [_ :initialized-at ?iat]]
+                     @conn)
+                first
+                first)]
+    (when (or (not last-initialized)
+              (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis)))
+      (refresh-db!)))
   @conn)
 
 (defn q [query]
@@ -57,6 +72,12 @@
 
 (comment
   (refresh-db!)
+
+  ;; Datascript does not store transaction timestamps
+  (q '[:find ?tx-time
+       :where
+       [_ _ _ ?tx]
+       [?tx :db/txInstant ?tx-time]])
   (q '[:find ?stop ?at
        :where
        [?r :route/id "A"]
