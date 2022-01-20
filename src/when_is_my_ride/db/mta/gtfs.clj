@@ -44,5 +44,10 @@
   (.getRouteId trip) ; 'A'
   (def nyct-trip (.getExtension trip NyctSubway/nyctTripDescriptor))
   (.getDirection nyct-trip) ; SOUTH or NORTH
+                            ;
+  (with-open
+    [out (clojure.java.io/output-stream "ace-feed-sample.txt")]
+    (.write out (:body (hc/get "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
+                               {:headers {"x-api-key" (env/env "MTA_API_KEY")} :as :byte-array}))))
   ; ensure trailing )
   )

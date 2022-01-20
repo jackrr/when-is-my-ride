@@ -67,8 +67,10 @@
       (refresh-db!)))
   @conn)
 
-(defn q [query]
-  (d/q query (get-db)))
+(defn q [query & args]
+  (if args
+    (apply (partial d/q query (get-db)) args)
+    (d/q query (get-db))))
 
 (comment
   (refresh-db!)
@@ -78,6 +80,30 @@
        :where
        [_ _ _ ?tx]
        [?tx :db/txInstant ?tx-time]])
+
+  (q '[:find ?r
+       :where
+       [_ :route/id ?r]])
+  (q '[:find ?r
+       :where
+       [?r :route/id "A"]])
+  (every?
+   (fn [route]
+     (not-empty
+      (q '[:find ?r
+           :in $ ?name
+           :where
+           [?r :route/id ?name]]
+         route)))
+   ["A" "C" "E"])
+  (q '[:find ?r
+       :where
+       [_ :route/id ?r]])
+  (q '[:find ?r
+       :in $ ?name
+       :where
+       [?r :route/id ?name]]
+     "A")
   (q '[:find ?stop ?at
        :where
        [?r :route/id "A"]
