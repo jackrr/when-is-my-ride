@@ -11,6 +11,7 @@
                  [metosin/muuntaja "0.6.8"]
                  [metosin/reitit "0.5.15"]
                  [org.clojure/clojure "1.10.3"]
+                 [org.clojure/data.csv "1.0.0"]
                  [ring/ring-jetty-adapter "1.7.1"]
                  [teknql/systemic "0.2.1"]
                  [wing/repl "0.1.4"]]

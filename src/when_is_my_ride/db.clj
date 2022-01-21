@@ -6,16 +6,9 @@
 
 (def schema
   {:initialized-at {:db/cardinality :db.cardinality/one}
-   :complex/id {:db/cardinality :db.cardinality/one
-                :db/unique :db.unique/identity}
-   :complex/name {:db/cardinality :db.cardinality/one}
-
    :stop/id {:db/cardinality :db.cardinality/one
              :db/unique :db.unique/identity}
-
    :stop/name {:db/cardinality :db.cardinality/one}
-   :stop/complex {:db/valueType :db.type/ref
-                  :db/cardinality :db.cardinality/one}
    :stop/parent {:db/valueType :db.type/ref
                  :db/cardinality :db.cardinality/one}
 

@@ -39,4 +39,8 @@
                     [?ts :trip-stop/at ?at]
                     [?ts :trip-stop/trip ?t]
                     [?t :trip/id ?trip]]))
-          "Has at least one stop"))))
+          "Has at least one stop"))
+
+    (testing "contains stop names"
+      (let [stop (sut/q '[:find ?name :where [?s :stop/id "F18N"] [?s :stop/name ?name]])]
+        (is (= (-> stop first first) "York St"))))))
