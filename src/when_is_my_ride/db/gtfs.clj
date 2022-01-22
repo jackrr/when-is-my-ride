@@ -15,3 +15,19 @@
        (some? get-additional-fields)
        (merge (get-additional-fields trip)))))
   ([feed] (feed-messages->trip-updates feed {})))
+
+(defn trip-update->datoms [{:keys [direction route-id trip-id stops]}]
+  (conj
+   (flatten (map
+             (fn [{:keys [stop-id arrival-time]}]
+               [{:stop/id stop-id}
+                {:trip-stop/at arrival-time
+                 :trip-stop/stop [:stop/id stop-id]
+                 :trip-stop/route [:route/id route-id]
+                 :trip-stop/trip [:trip/id trip-id]}])
+             stops))
+   (cond-> {:trip/id trip-id
+            :trip/route [:route/id route-id]}
+     (some? direction)
+     (assoc :trip/direction direction))
+   {:route/id route-id}))

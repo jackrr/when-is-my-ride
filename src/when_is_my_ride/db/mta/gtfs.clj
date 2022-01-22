@@ -21,20 +21,22 @@
       (GtfsRealtime$FeedMessage/parseFrom registry)))
 
 (defn- trip-data [route]
-  (-> route
-      fetch-data
-      (gtfs/feed-messages->trip-updates
-       {:get-additional-fields
-        (fn [trip]
-          {:direction (-> trip
-                          (.getExtension NyctSubway/nyctTripDescriptor)
-                          .getDirection
-                          .toString)})})))
+  (map gtfs/trip-update->datoms
+       (-> route
+           fetch-data
+           (gtfs/feed-messages->trip-updates
+            {:get-additional-fields
+             (fn [trip]
+               {:direction (-> trip
+                               (.getExtension NyctSubway/nyctTripDescriptor)
+                               .getDirection
+                               .toString)})}))))
 
 (defn latest-trip-data []
-  (flatten (map trip-data routes)))
+  (apply concat (map trip-data routes)))
 
 (comment
+  (first  (latest-trip-data))
   (def res (fetch-data "gtfs-ace"))
   (def entity (.getEntity res 0))
   (def tu (.getTripUpdate entity))
@@ -46,7 +48,7 @@
   (.getDirection nyct-trip) ; SOUTH or NORTH
                             ;
   (with-open
-    [out (clojure.java.io/output-stream "ace-feed-sample.txt")]
+   [out (clojure.java.io/output-stream "ace-feed-sample.txt")]
     (.write out (:body (hc/get "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
                                {:headers {"x-api-key" (env/env "MTA_API_KEY")} :as :byte-array}))))
   ; ensure trailing )
