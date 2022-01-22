@@ -2,7 +2,8 @@
 ;; Encapsulates logic to keep transit data up-to-date from GTFS feeds
 (ns when-is-my-ride.db
   (:require [datascript.core :as d]
-            [when-is-my-ride.db.mta :as mta]))
+            [when-is-my-ride.db.mta :as mta]
+            [when-is-my-ride.db.nyc-ferry :as nyc-ferry]))
 
 (def schema
   {:initialized-at {:db/cardinality :db.cardinality/one}
@@ -14,8 +15,10 @@
 
    :route/id {:db/cardinality :db.cardinality/one
               :db/unique :db.unique/identity}
+   :route/abbr {:db/cardinality :db.cardinality/one}
    :route/name {:db/cardinality :db.cardinality/one}
    :route/type {:db/cardinality :db.cardinality/one}
+   :route/color {:db/cardinality :db.cardinality/one}
 
    :trip/id {:db/cardinality :db.cardinality/one
              :db/unique :db.unique/identity}
@@ -41,6 +44,7 @@
 (defn- refresh-db! []
   (let [next (new-conn)]
     (mta/load-all next)
+    (nyc-ferry/load-all next)
     (d/transact! next [{:initialized-at (System/currentTimeMillis)}])
     (d/reset-conn! conn @next))
   true)
