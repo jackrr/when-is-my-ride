@@ -7,13 +7,14 @@
     (str prefix "-" id)))
 
 (defn feed-messages->trip-updates
-  ([feed {:keys [get-additional-fields namespace]}]
-   (let [->id (partial id-with-prefix namespace)]
+  ([feed {:keys [get-additional-fields agency]}]
+   (let [->id (partial id-with-prefix agency)]
      (for [i (range (.getEntityCount feed))
            :let [tu (-> feed (.getEntity i) .getTripUpdate)
                  trip (some-> tu .getTrip)]
            :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
-       (cond-> {:trip-id (-> trip .getTripId ->id)
+       (cond-> {:agency-id agency
+                :trip-id (-> trip .getTripId ->id)
                 :stops (map (fn [stop]
                               {:stop-id (-> stop .getStopId ->id)
                                :arrival-time (-> stop .getArrival .getTime)})
@@ -24,27 +25,28 @@
          (merge (get-additional-fields trip))))))
   ([feed] (feed-messages->trip-updates feed {})))
 
-(defn trip-update->datoms [{:keys [direction route-id trip-id stops]}]
+(defn trip-update->datoms [{:keys [agency-id direction route-id trip-id stops]}]
   (conj
    (flatten (map
              (fn [{:keys [stop-id arrival-time]}]
                [{:stop/id stop-id}
-                (cond-> {:trip-stop/at arrival-time
-                         :trip-stop/stop [:stop/id stop-id]
-                         :trip-stop/trip [:trip/id trip-id]}
+                (cond-> {:at arrival-time
+                         :agency [:agency/id agency-id]
+                         :stop [:stop/id stop-id]
+                         :trip [:trip/id trip-id]}
                   (some? route-id)
-                  (assoc :trip-stop/route [:route/id route-id]))])
+                  (assoc :route [:route/id route-id]))])
              stops))
    (cond-> {:trip/id trip-id}
      (some? route-id)
-     (assoc :trip/route [:route/id route-id])
+     (assoc :route [:route/id route-id])
      (some? direction)
-     (assoc :trip/direction direction))
+     (assoc :direction direction))
    {:route/id route-id}))
 
-(defn read-stops [resource-fname namespace]
+(defn read-stops [resource-fname agency]
   (with-open [stop-reader (-> resource-fname io/resource io/reader)]
-    (let [->id (partial id-with-prefix namespace)
+    (let [->id (partial id-with-prefix agency)
           stop-d (csv/read-csv stop-reader)
           stop-headers (first stop-d)
           stops (rest stop-d)
@@ -59,14 +61,15 @@
           [(let [parent (->id (get stop stop-parent-idx))]
              (cond-> {:db/id "stop-id"
                       :stop/id (->id (get stop stop-id-idx))
-                      :stop/name (get stop stop-name-idx)}
+                      :name (get stop stop-name-idx)
+                      :agency [:agency/id agency]}
                (not-empty parent)
-               (assoc :stop/parent [:stop/id parent])))])
+               (assoc :parent [:stop/id parent])))])
         stops)))))
 
-(defn read-routes [resource-fname namespace]
+(defn read-routes [resource-fname agency]
   (with-open [route-reader (-> resource-fname io/resource io/reader)]
-    (let [->id (partial id-with-prefix namespace)
+    (let [->id (partial id-with-prefix agency)
           data (csv/read-csv route-reader)
           headers (first data)
           routes (rest data)
@@ -80,14 +83,15 @@
        (map
         (fn [route]
           [{:route/id (->id (get route id-idx))
-            :route/abbr (get route abbr-idx)
-            :route/name (get route name-idx)
-            :route/color (get route color-idx)}])
+            :abbr (get route abbr-idx)
+            :name (get route name-idx)
+            :color (get route color-idx)
+            :agency [:agency/id agency]}])
         routes)))))
 
-(defn read-trips [resource-fname namespace]
+(defn read-trips [resource-fname agency]
   (with-open [route-reader (-> resource-fname io/resource io/reader)]
-    (let [->id (partial id-with-prefix namespace)
+    (let [->id (partial id-with-prefix agency)
           data (csv/read-csv route-reader)
           headers (first data)
           trips (rest data)
@@ -100,6 +104,7 @@
        (map
         (fn [trip]
           [{:trip/id (->id (get trip trip-id-idx))
-            :trip/route [:route/id (->id (get trip route-id-idx))]
-            :trip/direction (get trip direction-idx)}])
+            :route [:route/id (->id (get trip route-id-idx))]
+            :direction (get trip direction-idx)
+            :agency [:agency/id agency]}])
         trips)))))

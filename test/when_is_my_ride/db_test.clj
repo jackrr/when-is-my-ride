@@ -31,28 +31,38 @@
              (not-empty (sut/q '[:find ?r
                                  :in $ ?name
                                  :where
-                                 [?r :route/abbr ?name]]
+                                 [?r :abbr ?name]]
                                route)))
            ["A" "C" "E"]) "Contains routes for A,C,E trains"))
 
     (testing "contains subway stop names"
-      (let [stop (sut/q '[:find ?name :where [?s :stop/id "mta-F18N"] [?s :stop/name ?name]])]
+      (let [stop (sut/q '[:find ?name :where
+                          [?a :agency/id "mta"]
+                          [?s :agency ?a]
+                          [?s :stop/id ?sid]
+                          [(re-find #"F18N" ?sid)]
+                          [?s :name ?name]])]
         (is (= (-> stop first first) "York St"))))
 
     (testing "contains ferry stop names"
-      (let [query-res (sut/q '[:find ?name :where [?s :stop/id "nyc-ferry-20"] [?s :stop/name ?name]])]
+      (let [query-res (sut/q '[:find ?name :where
+                               [?a :agency/id "nyc-ferry"]
+                               [?s :agency ?a]
+                               [?s :stop/id ?sid]
+                               [(re-find #"\-20$" ?sid)]
+                               [?s :name ?name]])]
         (is (= (-> query-res first first) "Dumbo/Fulton Ferry"))))
 
     (testing "contains trip-stops with relationships"
       (is (not-empty
            (sut/q '[:find ?stop ?at ?trip
                     :where
-                    [?r :route/abbr "A"]
-                    [?ts :trip-stop/route ?r]
-                    [?ts :trip-stop/stop ?s]
+                    [?r :abbr "A"]
+                    [?ts :route ?r]
+                    [?ts :stop ?s]
                     [?s :stop/id ?stop]
-                    [?ts :trip-stop/at ?at]
-                    [?ts :trip-stop/trip ?t]
+                    [?ts :at ?at]
+                    [?ts :trip ?t]
                     [?t :trip/id ?trip]]))
           "Has at least one stop"))
 
@@ -60,11 +70,11 @@
       (is (not-empty
            (sut/q '[:find ?stop ?at ?trip
                     :where
-                    [?r :route/abbr "ER"]
-                    [?t :trip/route ?r]
-                    [?ts :trip-stop/trip ?t]
-                    [?ts :trip-stop/stop ?s]
+                    [?r :abbr "ER"]
+                    [?t :route ?r]
+                    [?ts :trip ?t]
+                    [?ts :stop ?s]
                     [?s :stop/id ?stop]
-                    [?ts :trip-stop/at ?at]
+                    [?ts :at ?at]
                     [?t :trip/id ?trip]]))
           "Has at least one stop"))))

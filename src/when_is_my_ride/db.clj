@@ -9,30 +9,30 @@
   {:initialized-at {:db/cardinality :db.cardinality/one}
    :stop/id {:db/cardinality :db.cardinality/one
              :db/unique :db.unique/identity}
-   :stop/name {:db/cardinality :db.cardinality/one}
-   :stop/parent {:db/valueType :db.type/ref
-                 :db/cardinality :db.cardinality/one}
-
    :route/id {:db/cardinality :db.cardinality/one
               :db/unique :db.unique/identity}
-   :route/abbr {:db/cardinality :db.cardinality/one}
-   :route/name {:db/cardinality :db.cardinality/one}
-   :route/type {:db/cardinality :db.cardinality/one}
-   :route/color {:db/cardinality :db.cardinality/one}
-
    :trip/id {:db/cardinality :db.cardinality/one
              :db/unique :db.unique/identity}
-   :trip/route {:db/valueType :db.type/ref
-                :db/cardinality :db.cardinality/one}
-   :trip/direction {:db/cardinality :db.cardinality/one}
+   :agency/id {:db/cardinality :db.cardinality/one
+               :db/unique :db.unique/identity}
 
-   :trip-stop/stop {:db/valueType :db.type/ref
-                    :db/cardinality :db.cardinality/one}
-   :trip-stop/trip {:db/valueType :db.type/ref
-                    :db/cardinality :db.cardinality/one}
-   :trip-stop/route {:db/valueType :db.type/ref
-                     :db/cardinality :db.cardinality/one}
-   :trip-stop/at {:db/cardinality :db.cardinality/one}})
+   :abbr {:db/cardinality :db.cardinality/one}
+   :name {:db/cardinality :db.cardinality/one}
+   :type {:db/cardinality :db.cardinality/one}
+   :color {:db/cardinality :db.cardinality/one}
+   :direction {:db/cardinality :db.cardinality/one}
+   :at {:db/cardinality :db.cardinality/one}
+
+   :stop {:db/valueType :db.type/ref
+          :db/cardinality :db.cardinality/one}
+   :parent {:db/valueType :db.type/ref
+            :db/cardinality :db.cardinality/one}
+   :trip {:db/valueType :db.type/ref
+          :db/cardinality :db.cardinality/one}
+   :route {:db/valueType :db.type/ref
+           :db/cardinality :db.cardinality/one}
+   :agency {:db/valueType :db.type/ref
+            :db/cardinality :db.cardinality/one}})
 
 (def STALE_THRESHOLD (* 1000 30))
 
@@ -99,14 +99,15 @@
   (q '[:find ?r
        :in $ ?name
        :where
-       [?r :route/id ?name]]
+       [?r :abbr ?name]
+       [?r :route/id ?id]]
      "A")
   (q '[:find ?stop ?at
        :where
        [?r :route/id "A"]
-       [?ts :trip-stop/route ?r]
-       [?ts :trip-stop/stop ?s]
+       [?ts :route ?r]
+       [?ts :stop ?s]
        [?s :stop/id ?stop]
-       [?ts :trip-stop/at ?at]])
+       [?ts :at ?at]])
   ; ensure autoformatter preserves \n before )
   )

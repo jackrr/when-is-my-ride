@@ -9,7 +9,7 @@
             [when-is-my-ride.env :as env]
             [when-is-my-ride.db.gtfs :as gtfs]))
 
-(def id-namespace "mta")
+(def agency "mta")
 
 (def ^:private registry
   (let [reg (ExtensionRegistryLite/newInstance)]
@@ -30,7 +30,7 @@
        (-> route
            fetch-data
            (gtfs/feed-messages->trip-updates
-            {:namespace id-namespace
+            {:agency agency
              :get-additional-fields
              (fn [trip]
                {:direction (-> trip
@@ -39,16 +39,17 @@
                                .toString)})}))))
 
 (defn- load-static [conn]
+  (d/transact! conn [{:agency/id agency}])
   (doall (map
           (fn [datoms]
             (d/transact! conn datoms))
-          (gtfs/read-stops "mta/stops.txt" id-namespace)))
+          (gtfs/read-stops "mta/stops.txt" agency)))
   (doall (map
           (fn [datoms]
             (d/transact! conn datoms))
-          (gtfs/read-routes "mta/routes.txt" id-namespace)))
+          (gtfs/read-routes "mta/routes.txt" agency)))
   (with-open [station-reader (-> "mta/stations.csv" io/resource io/reader)]
-    (let [->id (partial gtfs/id-with-prefix id-namespace)
+    (let [->id (partial gtfs/id-with-prefix agency)
           station-d (csv/read-csv station-reader)
           station-headers (first station-d)
           stations (rest station-d)
@@ -63,10 +64,12 @@
             (d/transact! conn
                          [{:db/ident station-id
                            :stop/id station-id
-                           :stop/name (get station station-name-idx)}
+                           :name (get station station-name-idx)
+                           :agency [:agency/id agency]}
                           {:db/ident stop-id
                            :stop/id stop-id
-                           :stop/parent [:stop/id station-id]}])))
+                           :agency [:agency/id agency]
+                           :parent [:stop/id station-id]}])))
         stations))))
   conn)
 

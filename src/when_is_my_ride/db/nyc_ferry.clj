@@ -4,21 +4,22 @@
             [hato.client :as hc]
             [when-is-my-ride.db.gtfs :as gtfs]))
 
-(def id-namespace "nyc-ferry")
+(def agency "nyc-ferry")
 
 (defn- load-static [conn]
+  (d/transact! conn [{:agency/id agency}])
   (doall (map
           (fn [datoms]
             (d/transact! conn datoms))
-          (gtfs/read-stops "nyc-ferry/stops.txt" id-namespace)))
+          (gtfs/read-stops "nyc-ferry/stops.txt" agency)))
   (doall (map
           (fn [datoms]
             (d/transact! conn datoms))
-          (gtfs/read-routes "nyc-ferry/routes.txt" id-namespace)))
+          (gtfs/read-routes "nyc-ferry/routes.txt" agency)))
   (doall (map
           (fn [datoms]
             (d/transact! conn datoms))
-          (gtfs/read-trips "nyc-ferry/trips.txt" id-namespace)))
+          (gtfs/read-trips "nyc-ferry/trips.txt" agency)))
   conn)
 
 (defn- load-trips [conn]
@@ -30,7 +31,7 @@
              {:as :byte-array})
             :body
             GtfsRealtime$FeedMessage/parseFrom
-            (gtfs/feed-messages->trip-updates {:namespace id-namespace}))))
+            (gtfs/feed-messages->trip-updates {:agency agency}))))
   conn)
 
 (defn load-all [conn]
