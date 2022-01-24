@@ -12,6 +12,7 @@ tmp/
 
 /out/
 /resources/public/js/compiled/
+/resources/public/css/
 /*-init.clj
 /*.log
 

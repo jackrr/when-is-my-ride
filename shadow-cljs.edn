@@ -9,11 +9,9 @@
   [re-frame "1.2.0"]
 
   [binaryage/devtools "1.0.4"]
-  [cider/cider-nrepl "0.28.1"]]
+  [cider/cider-nrepl "0.28.1"]
 
- :dev-http
- {8280 "resources/public"
-  8290 "target/browser-test"}
+  [com.teknql/shadow-cljs-tailwind-jit "0.2.2"]]
 
  :builds
  {:app
@@ -23,16 +21,26 @@
    :modules
    {:app {:init-fn when-is-my-ride.client.core/init}}
    :devtools
-   {:preloads []}
+   {:http-root "resources/public/"
+    :http-port 8280}
+
    :dev
-   {:compiler-options
-    {:closure-defines
-     { }}}}
+   {:build-hooks [(teknql.tailwind/start-watch!)]}
+
+   :release
+   {:build-hooks [(teknql.tailwind/compile-release!)]}
+
+   :tailwind/output "resources/public/css/site.css"}
+
   :browser-test
   {:target    :browser-test
+   :devtools
+   {:http-root "target/browser-test"
+    :http-port 8290}
    :ns-regexp "-test$"
    :runner-ns shadow.test.browser
    :test-dir  "target/browser-test"}
+
   :karma-test
   {:target    :karma
    :ns-regexp "-test$"
