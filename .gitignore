@@ -6,11 +6,27 @@ pom.xml
 pom.xml.asc
 *.jar
 *.class
+
+resources/secrets.edn
+tmp/
+
+/out/
+/resources/public/js/compiled/
+/*-init.clj
+/*.log
+
+# Leiningen
 /.lein-*
 /.nrepl-port
 /.prepl-port
 .hgignore
 .hg/
-.clj-kondo/.cache/
-resources/secrets.edn
-tmp/
+
+# Node.js dependencies
+/node_modules/
+
+# shadow-cljs cache, port files
+/.shadow-cljs/
+
+# clj-kondo cache
+/.clj-kondo/.cache
