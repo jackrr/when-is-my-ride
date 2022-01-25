@@ -3,12 +3,39 @@ name: Run tests
 on: [push]
 
 jobs:
-  test:
-    name: Test
+  test-frontend:
+    name: Test Frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+          cache: "npm"
+      - name: Maven cache
+        uses: actions/cache@v1
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('shadow-cljs.edn') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - run: npm install
+      - name: Compile
+        run: npx shadow-cljs compile :karma-test
+      - name: Karma
+        run: npx karma start --single-run
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Maven cache
+        uses: actions/cache@v1
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('project.clj') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
       - name: Prepare java
         uses: actions/setup-java@v2
         with:
