@@ -1,0 +1,26 @@
+{
+  "name": "when-is-my-ride",
+  "scripts": {
+    "ancient": "clojure -Sdeps '{:deps {com.github.liquidz/antq {:mvn/version \"RELEASE\"}}}' -m antq.core",
+    "watch": "npx shadow-cljs watch app browser-test karma-test",
+    "release": "npx shadow-cljs release app",
+    "build-report": "npx shadow-cljs run shadow.cljs.build-report app target/build-report.html",
+    "ci": "npx shadow-cljs compile karma-test && npx karma start --single-run --reporters junit,dots"
+  },
+  "dependencies": {
+    "react": "17.0.2",
+    "react-dom": "17.0.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.2",
+    "cssnano": "^5.0.16",
+    "karma": "6.3.11",
+    "karma-chrome-launcher": "3.1.0",
+    "karma-cljs-test": "0.1.0",
+    "karma-junit-reporter": "2.0.1",
+    "postcss": "^8.4.5",
+    "postcss-cli": "^9.1.0",
+    "shadow-cljs": "2.16.12",
+    "tailwindcss": "^3.0.16"
+  }
+}

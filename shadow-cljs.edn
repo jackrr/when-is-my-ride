@@ -1,0 +1,47 @@
+{:nrepl {:port 8777}
+
+ :jvm-opts ["-Xmx1G"]
+
+ :source-paths ["src" "test"]
+
+ :dependencies
+ [[reagent "1.1.0"]
+  [re-frame "1.2.0"]
+
+  [binaryage/devtools "1.0.4"]
+  [cider/cider-nrepl "0.28.1"]
+
+  [com.teknql/shadow-cljs-tailwind-jit "0.2.2"]]
+
+ :builds
+ {:app
+  {:target     :browser
+   :output-dir "resources/public/js/compiled"
+   :asset-path "/js/compiled"
+   :modules
+   {:app {:init-fn when-is-my-ride.client.core/init}}
+   :devtools
+   {:http-root "resources/public/"
+    :http-port 8280}
+
+   :dev
+   {:build-hooks [(teknql.tailwind/start-watch!)]}
+
+   :release
+   {:build-hooks [(teknql.tailwind/compile-release!)]}
+
+   :tailwind/output "resources/public/css/site.css"}
+
+  :browser-test
+  {:target    :browser-test
+   :devtools
+   {:http-root "target/browser-test"
+    :http-port 8290}
+   :ns-regexp "-test$"
+   :runner-ns shadow.test.browser
+   :test-dir  "target/browser-test"}
+
+  :karma-test
+  {:target    :karma
+   :ns-regexp "-test$"
+   :output-to "target/karma-test.js"}}}
