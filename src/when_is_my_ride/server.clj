@@ -41,7 +41,7 @@
 
 (defsys *server* []
   :deps [env/file-env]
-  :clojure
+  :closure
   (let [server (jetty/run-jetty #'app {:port 3000, :join? false, :async? true})]
     {:value server
      :stop (fn [] (.stop server))}))
