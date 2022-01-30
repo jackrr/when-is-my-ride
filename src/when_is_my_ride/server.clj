@@ -8,13 +8,15 @@
             [muuntaja.interceptor]
             [systemic.core :as systemic :refer [defsys]]
             [when-is-my-ride.api :as api]
-            [when-is-my-ride.env :as env]))
+            [when-is-my-ride.cors :as cors]))
 
 (def app
   (http/ring-handler
    (http/router
     ["/api"
-     {:interceptors [(parameters/parameters-interceptor)]}
+     {:interceptors [(parameters/parameters-interceptor)
+                     (cors/interceptor {:access-control-allow-origin [#".*"]
+                                        :access-control-allow-methods [:get :put :post :delete]})]}
      ["/stops"
       {:get {:interceptors [{:leave (fn [& args] (apply api/stops-handler args))}]}}]])
 
