@@ -1,13 +1,11 @@
 (ns when-is-my-ride.env
-  (:require
-   [clojure.java.io :as io]
-   [systemic.core :refer [defsys]]))
+  (:require [clojure.java.io :as io]))
 
-(defsys file-env
-  :start
+(defn file-env [key]
   (-> (io/resource "secrets.edn")
       (slurp)
-      (read-string)))
+      (read-string)
+      (get key)))
 
 (defn env [key]
   (or (System/getenv key) (file-env key)))

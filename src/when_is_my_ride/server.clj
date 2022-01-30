@@ -23,7 +23,6 @@
     :interceptors [(muuntaja.interceptor/format-interceptor)]}))
 
 (defsys *server* []
-  :deps [env/file-env]
   :closure
   (let [server (jetty/run-jetty #'app {:port 3000, :join? false, :async? true})]
     {:value server
