@@ -6,4 +6,8 @@
 (with-mock-db
   (deftest stops
     (testing "returns matching stops"
-      (is (some #(= (:name %) "East Broadway") @(sut/stops-for "broadway"))))))
+      (is (some #(= (:name %) "East Broadway") @(sut/stops-for "broadway"))))
+
+    (testing "contains no duplicate parents"
+      (let [res @(sut/stops-for "junc")]
+        (is (= (count res) (->> res (map :id) distinct count)))))))

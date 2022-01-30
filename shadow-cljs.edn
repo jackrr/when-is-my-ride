@@ -11,7 +11,8 @@
   [binaryage/devtools "1.0.4"]
   [cider/cider-nrepl "0.28.1"]
 
-  [com.teknql/shadow-cljs-tailwind-jit "0.2.2"]]
+  [com.teknql/shadow-cljs-tailwind-jit "0.2.2"]
+  [day8.re-frame/http-fx "0.2.4"]]
 
  :builds
  {:app

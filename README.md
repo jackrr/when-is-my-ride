@@ -8,7 +8,7 @@ https://whenismyride.com.
 ## Contributions
 
 Contributions are welcome. Feel free to open an issue describing the changes
-you'd like to see and we'll go from there.
+you'd like to see and we'll go from there. 
 
 ## Running the app
 

@@ -57,4 +57,28 @@
                     [?s :stop/id ?stop]
                     [?ts :at ?at]
                     [?t :trip/id ?trip]]))
-          "Has at least one stop"))))
+          "Has at least one stop"))
+
+    (testing "has parents"
+      (let [parent (sut/q '[:find ?pid ?pname
+                          :in $ ?sid %
+                          :where
+                          [?s :stop/id ?sid]
+                          (parent ?p ?s)
+                          [?p :name ?pname]
+                          [?p :stop/id ?pid]]
+                        "mta-101N"
+                        sut/rules)]
+        (is (= (-> parent first first) "mta-101"))))
+
+    (testing "has complexes"
+      (let [parent (sut/q '[:find ?pid ?pname
+                          :in $ ?sid %
+                          :where
+                          [?s :stop/id ?sid]
+                          (parent ?p ?s)
+                          [?p :name ?pname]
+                          [?p :stop/id ?pid]]
+                        "mta-725N"
+                        sut/rules)]
+        (is (= (-> parent first first) "mta-cplx-611"))))))

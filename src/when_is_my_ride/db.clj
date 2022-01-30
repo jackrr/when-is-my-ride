@@ -68,6 +68,11 @@
       (future (refresh-db!))))
   @conn)
 
+(def rules '[[(parent ?p ?c) (?c :parent ?p)]
+             [(parent ?p ?c) (?c :parent ?p1) (parent ?p ?p1)]
+             ;[(str-like ?query ?str) (re-find (re-pattern (str "(?i)" ?query)) ?str)]
+             ])
+
 (defn q [query & args]
   (if args
     (apply (partial d/q query (get-db)) args)
