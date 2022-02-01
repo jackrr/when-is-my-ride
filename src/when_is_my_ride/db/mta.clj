@@ -7,7 +7,8 @@
             [datascript.core :as d]
             [hato.client :as hc]
             [when-is-my-ride.env :as env]
-            [when-is-my-ride.db.gtfs :as gtfs]))
+            [when-is-my-ride.db.gtfs :as gtfs]
+            [clojure.string :as str]))
 
 (def agency "mta")
 
@@ -55,22 +56,37 @@
           stations (rest station-d)
           station-id-idx (.indexOf station-headers "Complex ID")
           station-stop-id-idx (.indexOf station-headers "GTFS Stop ID")
-          station-name-idx (.indexOf station-headers "Stop Name")]
+          station-name-idx (.indexOf station-headers "Stop Name")
+          structured (map (fn [s] {:id (->id (get s station-stop-id-idx))
+                                   :complex-id (->id (str "cplx-" (get s station-id-idx)))
+                                   :name (get s station-name-idx)})
+                          stations)
+          complexes  (->> structured
+                               (reduce (fn [cs {:keys [complex-id name]}]
+                                         (if (get cs complex-id)
+                                           (update cs complex-id
+                                                   (fn [cplx]
+                                                     (let [names (distinct (conj (:names cplx) name))]
+                                                       {:n (inc (:n cplx))
+                                                        :names names
+                                                        :name (str/join " / " names)})))
+                                           (assoc cs complex-id {:n 1
+                                                                 :names [name]})))
+                                       {}))]
       (doall
        (map
-        (fn [station]
-          (let [stop-id (->id (get station station-stop-id-idx))
-                station-id (->id (get station station-id-idx))]
+        (fn [{:keys [id complex-id]}]
+          (when (< 1 (get-in complexes [complex-id :n]))
             (d/transact! conn
-                         [{:db/ident station-id
-                           :stop/id station-id
-                           :name (get station station-name-idx)
+                         [{:db/ident complex-id
+                           :stop/id complex-id
+                           :name (get-in complexes [complex-id :name])
                            :agency [:agency/id agency]}
-                          {:db/ident stop-id
-                           :stop/id stop-id
+                          {:db/ident id
+                           :stop/id id
                            :agency [:agency/id agency]
-                           :parent [:stop/id station-id]}])))
-        stations))))
+                           :parent [:stop/id complex-id]}])))
+        structured))))
   conn)
 
 (defn- load-trips [conn]
