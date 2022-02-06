@@ -1,10 +1,27 @@
 (ns when-is-my-ride.db-test
   (:require [clojure.test :refer [deftest testing is]]
             [when-is-my-ride.db :as sut]
-            [when-is-my-ride.mock-db :refer [with-mock-db]]))
+            [when-is-my-ride.mock-db :as mock-db]
+            [clojure.java.io :as io]
+            [hato.client :as hc]
+            [when-is-my-ride.db.mta :as mta]))
 
-(with-mock-db
-  (deftest db-integration
+(deftest db-integration
+  ;; HELP: how to extract mocks? they don't work once pulled into own function
+  (with-redefs
+   [mta/routes ["gtfs-ace"]
+    hc/get (fn [url & _]
+             (cond
+               (some? (re-find #"nycferry" url))
+               {:body
+                (-> "test/ferry-feed-sample.txt"
+                    io/resource
+                    mock-db/file->bytes)}
+               :else
+               {:body
+                (-> "test/ace-feed-sample.txt"
+                    io/resource
+                    mock-db/file->bytes)}))]
     (testing "contains queryable routes"
       (is (every?
            (fn [route]
@@ -61,24 +78,24 @@
 
     (testing "has parents"
       (let [parent (sut/q '[:find ?pid ?pname
-                          :in $ ?sid %
-                          :where
-                          [?s :stop/id ?sid]
-                          (parent ?p ?s)
-                          [?p :name ?pname]
-                          [?p :stop/id ?pid]]
-                        "mta-101N"
-                        sut/rules)]
+                            :in $ ?sid %
+                            :where
+                            [?s :stop/id ?sid]
+                            (parent ?p ?s)
+                            [?p :name ?pname]
+                            [?p :stop/id ?pid]]
+                          "mta-101N"
+                          sut/rules)]
         (is (= (-> parent first first) "mta-101"))))
 
     (testing "has complexes"
       (let [parent (sut/q '[:find ?pid ?pname
-                          :in $ ?sid %
-                          :where
-                          [?s :stop/id ?sid]
-                          (parent ?p ?s)
-                          [?p :name ?pname]
-                          [?p :stop/id ?pid]]
-                        "mta-725N"
-                        sut/rules)]
+                            :in $ ?sid %
+                            :where
+                            [?s :stop/id ?sid]
+                            (parent ?p ?s)
+                            [?p :name ?pname]
+                            [?p :stop/id ?pid]]
+                          "mta-725N"
+                          sut/rules)]
         (is (= (-> parent first first) "mta-cplx-611"))))))

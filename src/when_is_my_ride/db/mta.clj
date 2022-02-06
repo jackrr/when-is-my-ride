@@ -17,12 +17,12 @@
     (NyctSubway/registerAllExtensions reg)
     reg))
 
-(def ^:private routes
+(def routes
   ["gtfs-ace" "gtfs-bdfm" "gtfs-g" "gtfs-jz" "gtfs-nqrw" "gtfs-l" "gtfs" "gtfs-si"])
 
 (defn- fetch-data [route]
   (-> (str "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F" route)
-      (hc/get {:headers {"x-api-key" (env/env "MTA_API_KEY")} :as :byte-array})
+      (hc/get {:headers {"x-api-key" (or (env/env "MTA_API_KEY") "")} :as :byte-array})
       :body
       (GtfsRealtime$FeedMessage/parseFrom registry)))
 
