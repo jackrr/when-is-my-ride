@@ -50,7 +50,7 @@
   true)
 
 (defn- get-db
-  "Provide conn to db of transit data, refreshed if older than threshold"
+  "Provide conn to db of transit data, trigger an async refresh if older than threshold"
   []
   (let [last-initialized
         (some-> (d/q '[:find (max ?iat)
@@ -59,10 +59,19 @@
                      @conn)
                 first
                 first)]
-    (when (or (not last-initialized)
-              (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis)))
-      (refresh-db!)))
+    (cond
+      (not last-initialized)
+      ;; Need to initialize the db
+      (refresh-db!)
+
+      (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis))
+      (future (refresh-db!))))
   @conn)
+
+(def rules '[[(parent ?p ?c) (?c :parent ?p)]
+             [(parent ?p ?c) (?c :parent ?p1) (parent ?p ?p1)]
+             ;[(str-like ?query ?str) (re-find (re-pattern (str "(?i)" ?query)) ?str)]
+             ])
 
 (defn q [query & args]
   (if args
