@@ -1,7 +1,8 @@
 (ns when-is-my-ride.client.stops
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [when-is-my-ride.client.api :as api]))
+            [when-is-my-ride.client.api :as api]
+            [when-is-my-ride.client.route :as route]))
 
 (rf/reg-sub ::search-results (fn [db]
                                (or (get-in db [::stops ::search-results]) [])))
@@ -12,6 +13,7 @@
    (assoc-in db [::stops ::search-results]
              (map (fn [s] {::id (:id s)
                            ::name (:name s)
+                           ::routes (:routes s)
                            ::match {::id (:match-id s)
                                     ::name (:match-name s)}}) stops))))
 
@@ -35,9 +37,11 @@
     (let [results (rf/subscribe [::search-results])]
       [:div
        (map
-        (fn [r] [:p {:key (::id r)}
+        (fn [r] [:div {:key (::id r)
+                       :className "flex gap-x-1 my-2"}
                  (let [name (::name r)
                        match-name (get-in r [::match ::name])]
-                   (str name
-                        (when (not (str/includes? name match-name)) (str " (" match-name  ")"))))])
+                   [:p (str name
+                            (when (not (str/includes? name match-name)) (str " (" match-name  ")")))])
+                 (map route/icon (::routes r))])
         @results)])]])
