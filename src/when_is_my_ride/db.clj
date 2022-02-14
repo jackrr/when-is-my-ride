@@ -64,10 +64,14 @@
     (cond
       (not last-initialized)
       ;; Need to initialize the db
-      (refresh-db!)
+      (do
+        (println "Reloading DB sync")
+        (refresh-db!))
 
       (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis))
-      (future (refresh-db!))))
+      (do
+        (println "Reloading DB async")
+        (future (refresh-db!)))))
   @conn)
 
 (def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
@@ -83,6 +87,9 @@
   (if args
     (apply (partial d/q query (get-db)) args)
     (d/q query (get-db))))
+
+(defn pull-many [& args]
+  (apply (partial d/pull-many (get-db)) args))
 
 (comment
   (refresh-db!)

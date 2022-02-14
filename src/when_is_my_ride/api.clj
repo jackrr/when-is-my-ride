@@ -38,13 +38,13 @@
       ; pull route info and name for each stop
       (->> entities
            (map :eid)
-           (ds/pull-many (db/get-db)
-                         '[:db/id
-                           :stop/id
-                           :name
-                           {:routes
-                            [:route/id :abbr :color {:agency [:agency/id]}]}
-                           {:_parent ...}])
+           (db/pull-many
+            '[:db/id
+              :stop/id
+              :name
+              {:routes
+               [:route/id :abbr :color {:agency [:agency/id]}]}
+              {:_parent ...}])
            (map (fn [stop]
                   (let [match (get entity-lookup (:db/id stop))]
                     {:id (:stop/id stop)

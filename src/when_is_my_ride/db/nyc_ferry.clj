@@ -31,7 +31,7 @@
              {:as :byte-array})
             :body
             GtfsRealtime$FeedMessage/parseFrom
-            (gtfs/feed-messages->trip-updates {:agency agency}))))
+            (gtfs/feed-messages->trip-updates {:agency agency :conn conn}))))
   conn)
 
 (defn load-all [conn]

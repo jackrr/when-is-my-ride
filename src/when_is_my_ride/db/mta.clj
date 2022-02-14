@@ -26,12 +26,13 @@
       :body
       (GtfsRealtime$FeedMessage/parseFrom registry)))
 
-(defn- trip-data [route]
+(defn- trip-data [conn route]
   (map gtfs/trip-update->datoms
        (-> route
            fetch-data
            (gtfs/feed-messages->trip-updates
             {:agency agency
+             :conn conn
              :get-additional-fields
              (fn [trip]
                {:direction (-> trip
@@ -92,7 +93,7 @@
 (defn- load-trips [conn]
   (doall (map (fn [datoms]
                 (d/transact! conn datoms))
-              (apply concat (map trip-data routes))))
+              (apply concat (map (partial trip-data conn) routes))))
   conn)
 
 (defn load-all [conn]
