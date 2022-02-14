@@ -26,4 +26,15 @@
 
     (testing "contains no duplicate parents"
       (let [res @(sut/stops-for "junc")]
-        (is (= (count res) (->> res (map :id) distinct count)))))))
+        (is (= (count res) (->> res (map :id) distinct count)))))
+
+    (testing "contains route info"
+      (is (every? (fn [stop]
+                    (let [routes (:routes stop)]
+                      (and (< 0 (count routes))
+                           (every? (fn [route]
+                                     (and (some? (:abbr route))
+                                          (some? (:color route))
+                                          (some? (:agency route))))
+                                   routes))))
+                  @(sut/stops-for "Jackson Hts-Roosevelt Av / 74 St-Broadway"))))))
