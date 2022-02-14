@@ -31,6 +31,8 @@
           :db/cardinality :db.cardinality/one}
    :route {:db/valueType :db.type/ref
            :db/cardinality :db.cardinality/one}
+   :routes {:db/valueType :db.type/ref
+            :db/cardinality :db.cardinality/many}
    :agency {:db/valueType :db.type/ref
             :db/cardinality :db.cardinality/one}})
 
@@ -49,7 +51,7 @@
     (d/reset-conn! conn @next))
   true)
 
-(defn- get-db
+(defn get-db
   "Provide conn to db of transit data, trigger an async refresh if older than threshold"
   []
   (let [last-initialized

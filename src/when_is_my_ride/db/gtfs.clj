@@ -29,7 +29,10 @@
   (conj
    (flatten (map
              (fn [{:keys [stop-id arrival-time]}]
-               [{:stop/id stop-id}
+               [(cond-> {:stop/id stop-id
+                         :trip [:trip/id trip-id]}
+                  (some? route-id)
+                  (assoc :routes [:route/id route-id]))
                 (cond-> {:at arrival-time
                          :agency [:agency/id agency-id]
                          :stop [:stop/id stop-id]
@@ -42,7 +45,8 @@
      (assoc :route [:route/id route-id])
      (some? direction)
      (assoc :direction direction))
-   {:route/id route-id}))
+   {:route/id route-id
+    :agency [:agency/id agency-id]}))
 
 (defn read-stops [resource-fname agency]
   (with-open [stop-reader (-> resource-fname io/resource io/reader)]
