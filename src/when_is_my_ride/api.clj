@@ -1,5 +1,6 @@
 (ns when-is-my-ride.api
-  (:require [manifold.deferred :as d]
+  (:require [datascript.core :as ds]
+            [manifold.deferred :as d]
             [when-is-my-ride.db :as db]))
 
 (defn distinct-p
@@ -9,35 +10,66 @@
    (if (empty? coll)
      '()
      (lazy-seq
-        (let [next (first coll)
-              key (pred next)
-              is-dup (contains? seen key)
-              recurred (distinct-p pred (rest coll) (if is-dup seen (conj seen key)))]
-          (if is-dup
-            recurred
-            (cons next recurred)))))))
+      (let [next (first coll)
+            key (pred next)
+            is-dup (contains? seen key)
+            recurred (distinct-p pred (rest coll) (if is-dup seen (conj seen key)))]
+        (if is-dup
+          recurred
+          (cons next recurred)))))))
 
 (defn stops-for [query]
   (d/future
-    (->> (db/q '[:find ?station-id ?station-name ?match-id ?match-name
-                :in $ ?name-like %
-                :where
-                [?s :name ?match-name]
-                [?s :stop/id ?match-id]
-                [(re-find ?name-like ?match-name)]
-                (parent ?p ?s)
-                [(missing? $ ?p :parent)]
-                [?p :name ?station-name]
-                [?p :stop/id ?station-id]]
-              (re-pattern (str "(?i)" query))
-              db/rules)
-        (map (fn [entry]
-           {:id (first entry)
-            :name (nth entry 1)
-            :match-id (nth entry 2)
-            :match-name (last entry)}))
-        (distinct-p :id)
-        (sort-by :name))))
+    (let [entities (->> (db/q '[:find ?p ?match-id ?match-name
+                                :in $ ?name-like %
+                                :where
+                                [?s :name ?match-name]
+                                [?s :stop/id ?match-id]
+                                [(re-find ?name-like ?match-name)]
+                                (parent ?p ?s)
+                                [(missing? $ ?p :parent)]]
+                              (re-pattern (str "(?i)" query))
+                              db/rules)
+                        (map (fn [entry]
+                               {:eid (first entry)
+                                :match-id (nth entry 1)
+                                :match-name (nth entry 2)}))
+                        (distinct-p :eid))
+          entity-lookup (reduce (fn [lookup match] (assoc lookup (:eid match) match)) {} entities)]
+      ; pull route info and name for each stop
+      (->> entities
+           (map :eid)
+           (ds/pull-many (db/get-db)
+                         '[:db/id
+                           :stop/id
+                           :name
+                           {:routes
+                            [:route/id :abbr :color {:agency [:agency/id]}]}
+                           {:_parent ...}])
+           (map (fn [stop]
+                  (let [match (get entity-lookup (:db/id stop))]
+                    {:id (:stop/id stop)
+                     :name (:name stop)
+                     :match-id (:match-id match)
+                     :match-name (:match-name match)
+                     :routes (->> stop
+                                  ;; recursively find routes
+                                  ((fn rr [s]
+                                     (let [routes (or (:routes s) [])]
+                                       (if (some? (:_parent s))
+                                         (concat routes
+                                                 (->> s
+                                                      :_parent
+                                                      (map rr)
+                                                      flatten))
+                                         routes))))
+                                  ;; simplify keys
+                                  (map (fn [r] (-> r
+                                                   (assoc :agency (-> r :agency :agency/id)
+                                                          :id (:route/id r))
+                                                   (dissoc :route/id))))
+                                  (distinct-p :id))})))
+           (sort-by :name)))))
 
 (defn stops-handler [ctx]
   (d/chain (stops-for (-> ctx :request :query-params (get "query")))
