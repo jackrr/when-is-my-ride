@@ -1,29 +1,38 @@
 (ns when-is-my-ride.db.gtfs
   (:require [clojure.data.csv :as csv]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [datascript.core :as d]))
 
 (defn id-with-prefix [prefix id]
   (when (not-empty id)
     (str prefix "-" id)))
 
-(defn feed-messages->trip-updates
-  ([feed {:keys [get-additional-fields agency]}]
-   (let [->id (partial id-with-prefix agency)]
-     (for [i (range (.getEntityCount feed))
-           :let [tu (-> feed (.getEntity i) .getTripUpdate)
-                 trip (some-> tu .getTrip)]
-           :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
-       (cond-> {:agency-id agency
-                :trip-id (-> trip .getTripId ->id)
-                :stops (map (fn [stop]
-                              {:stop-id (-> stop .getStopId ->id)
-                               :arrival-time (-> stop .getArrival .getTime)})
-                            (.getStopTimeUpdateList tu))}
-         (.hasRouteId trip)
-         (assoc :route-id (-> trip .getRouteId ->id))
-         (some? get-additional-fields)
-         (merge (get-additional-fields trip))))))
-  ([feed] (feed-messages->trip-updates feed {})))
+(defn feed-messages->trip-updates [feed {:keys [get-additional-fields agency conn]}]
+  (let [->id (partial id-with-prefix agency)]
+    (for [i (range (.getEntityCount feed))
+          :let [tu (-> feed (.getEntity i) .getTripUpdate)
+                trip (some-> tu .getTrip)
+                trip-id (-> trip .getTripId ->id)
+                route-id (if (.hasRouteId trip)
+                           (-> trip .getRouteId ->id)
+                           (first (d/q '[:find [?rid]
+                                         :in $ ?tid
+                                         :where
+                                         [?t :trip/id ?tid]
+                                         [?t :route ?r]
+                                         [?r :route/id ?rid]]
+                                       @conn
+                                       trip-id)))]
+          :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
+      (cond-> {:agency-id agency
+               :trip-id trip-id
+               :route-id route-id
+               :stops (map (fn [stop]
+                             {:stop-id (-> stop .getStopId ->id)
+                              :arrival-time (-> stop .getArrival .getTime)})
+                           (.getStopTimeUpdateList tu))}
+        (some? get-additional-fields)
+        (merge (get-additional-fields trip))))))
 
 (defn trip-update->datoms [{:keys [agency-id direction route-id trip-id stops]}]
   (conj

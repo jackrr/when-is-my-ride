@@ -64,21 +64,32 @@
     (cond
       (not last-initialized)
       ;; Need to initialize the db
-      (refresh-db!)
+      (do
+        (println "Reloading DB sync")
+        (refresh-db!))
 
       (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis))
-      (future (refresh-db!))))
+      (do
+        (println "Reloading DB async")
+        (future (refresh-db!)))))
   @conn)
 
-(def rules '[[(parent ?p ?c) (?c :parent ?p)]
+(def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
+             [(parent ?p ?c) (?c :parent ?p)]
              [(parent ?p ?c) (?c :parent ?p1) (parent ?p ?p1)]
-             ;[(str-like ?query ?str) (re-find (re-pattern (str "(?i)" ?query)) ?str)]
-             ])
+             [(root? ?p) [(missing? $ ?p :parent)]]
+             [(root ?e ?r) (and
+                            (or (parent ?r ?e)
+                                (self ?e ?r))
+                            (root? ?r))]])
 
 (defn q [query & args]
   (if args
     (apply (partial d/q query (get-db)) args)
     (d/q query (get-db))))
+
+(defn pull-many [& args]
+  (apply (partial d/pull-many (get-db)) args))
 
 (comment
   (refresh-db!)
