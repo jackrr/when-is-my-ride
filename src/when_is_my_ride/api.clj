@@ -20,14 +20,13 @@
 
 (defn stops-for [query]
   (d/future
-    (let [entities (->> (db/q '[:find ?p ?match-id ?match-name
+    (let [entities (->> (db/q '[:find ?root ?match-id ?match-name
                                 :in $ ?name-like %
                                 :where
                                 [?s :name ?match-name]
                                 [?s :stop/id ?match-id]
                                 [(re-find ?name-like ?match-name)]
-                                (parent ?p ?s)
-                                [(missing? $ ?p :parent)]]
+                                (root ?s ?root)]
                               (re-pattern (str "(?i)" query))
                               db/rules)
                         (map (fn [entry]
@@ -80,5 +79,6 @@
   (distinct-p :id [{:id 1 :v "one"} {:id 2 :v "two"} {:id 1 :v "another 1"}])
   @(stops-for "junc")
   @(stops-for "broad")
+  @(stops-for "dumbo")
   ; )
   )

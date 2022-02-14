@@ -70,10 +70,14 @@
       (future (refresh-db!))))
   @conn)
 
-(def rules '[[(parent ?p ?c) (?c :parent ?p)]
+(def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
+             [(parent ?p ?c) (?c :parent ?p)]
              [(parent ?p ?c) (?c :parent ?p1) (parent ?p ?p1)]
-             ;[(str-like ?query ?str) (re-find (re-pattern (str "(?i)" ?query)) ?str)]
-             ])
+             [(root? ?p) [(missing? $ ?p :parent)]]
+             [(root ?e ?r) (and
+                            (or (parent ?r ?e)
+                                (self ?e ?r))
+                            (root? ?r))]])
 
 (defn q [query & args]
   (if args
