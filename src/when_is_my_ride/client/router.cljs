@@ -1,11 +1,9 @@
 (ns when-is-my-ride.client.router
-  (:require [reagent.core :as r]
-            [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [reagent.core :as r]
+            [when-is-my-ride.util :refer [find-first]]))
 
 (def ^:private nav-event-id "ROUTER::NAV")
-
-(defn- find-first [f coll]
-  (first (filter f coll)))
 
 (defn- path-utils [path]
   (let [segment? (fn [seg] (str/starts-with? seg ":"))
@@ -13,7 +11,10 @@
         segs (if (empty? (first segs)) (rest segs) segs)
         url-seg "([A-z0-9\\-_]+)"]
     {:segments segs
-     :params (filter segment? segs)
+     :params (->> segs (filter segment?)
+                  (map #(-> %
+                            (str/replace ":" "")
+                            keyword)))
      :matcher (if (empty? segs)
                 (re-pattern "^\\/$")
                 (re-pattern
@@ -30,15 +31,17 @@
         route (find-first (fn [{:keys [matcher]}]
                             (re-matches matcher path)) routes)
         route (or route default-route)
-        path-match (re-matches (:matcher route) path)]
-    (swap! state (fn [_] {:view (:view route)
-                          :name (:name route)
-                          :path (:path loc)
-                          :params (if (< 0 (count path-match))
-                                    (zipmap (:params route) (rest path-match))
-                                    {})
+        path-match (re-matches (:matcher route) path)
+        next-nav-state {:view (:view route)
+                        :name (:name route)
+                        :path (:path loc)
+                        :params (if (< 0 (count path-match))
+                                  (zipmap (:params route) (rest path-match))
+                                  {})
                           ;; TODO: implement query string parsing once needed
-                          :query {}}))))
+                        :query {}}]
+    (when-let [on-load (:on-load route)] (on-load next-nav-state))
+    (swap! state (fn [_] next-nav-state))))
 
 (defn- nav-event []
   (js/CustomEvent. nav-event-id {}))
