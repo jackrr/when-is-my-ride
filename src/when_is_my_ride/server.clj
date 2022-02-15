@@ -8,7 +8,8 @@
             [muuntaja.interceptor]
             [systemic.core :as systemic :refer [defsys]]
             [when-is-my-ride.api :as api]
-            [when-is-my-ride.cors :as cors]))
+            [when-is-my-ride.cors :as cors]
+            [clojure.java.io :as io]))
 
 (def app
   (http/ring-handler
@@ -21,8 +22,15 @@
       ["" {:get {:interceptors [{:leave (fn [& args] (apply api/stops-handler args))}]}}]
       ["/:stop-id"
        {:get {:interceptors [{:leave (fn [& args] (apply api/stop-handler args))}]}}]]])
-
-   (ring/create-default-handler)
+   (ring/routes
+    (ring/create-resource-handler {:path "/"})
+    (ring/create-default-handler
+     {:not-found
+      ;; HACK: SPA server experience
+      (constantly {:status 200
+                   :body (-> "public/index.html"
+                             io/resource
+                             slurp)})}))
    {:executor reitit.interceptor.sieppari/executor
     :interceptors [(muuntaja.interceptor/format-interceptor)]}))
 
