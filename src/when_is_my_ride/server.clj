@@ -18,7 +18,9 @@
                      (cors/interceptor {:access-control-allow-origin [#".*"]
                                         :access-control-allow-methods [:get :put :post :delete]})]}
      ["/stops"
-      {:get {:interceptors [{:leave (fn [& args] (apply api/stops-handler args))}]}}]])
+      ["" {:get {:interceptors [{:leave (fn [& args] (apply api/stops-handler args))}]}}]
+      ["/:stop-id"
+       {:get {:interceptors [{:leave (fn [& args] (apply api/stop-handler args))}]}}]]])
 
    (ring/create-default-handler)
    {:executor reitit.interceptor.sieppari/executor

@@ -28,8 +28,11 @@
                :trip-id trip-id
                :route-id route-id
                :stops (map (fn [stop]
-                             {:stop-id (-> stop .getStopId ->id)
-                              :arrival-time (-> stop .getArrival .getTime)})
+                             (let [sid (-> stop .getStopId ->id)
+                                   at (-> stop .getArrival .getTime)]
+                               {:stop-id sid
+                                :arrival-time at
+                                :ts-id (->id (str "ts-" at "-" sid))}))
                            (.getStopTimeUpdateList tu))}
         (some? get-additional-fields)
         (merge (get-additional-fields trip))))))
@@ -37,12 +40,13 @@
 (defn trip-update->datoms [{:keys [agency-id direction route-id trip-id stops]}]
   (conj
    (flatten (map
-             (fn [{:keys [stop-id arrival-time]}]
+             (fn [{:keys [stop-id arrival-time ts-id]}]
                [(cond-> {:stop/id stop-id
                          :trip [:trip/id trip-id]}
                   (some? route-id)
                   (assoc :routes [:route/id route-id]))
-                (cond-> {:at arrival-time
+                (cond-> {:trip-stop/id ts-id
+                         :at arrival-time
                          :agency [:agency/id agency-id]
                          :stop [:stop/id stop-id]
                          :trip [:trip/id trip-id]}

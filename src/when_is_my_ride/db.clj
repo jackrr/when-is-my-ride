@@ -15,6 +15,8 @@
              :db/unique :db.unique/identity}
    :agency/id {:db/cardinality :db.cardinality/one
                :db/unique :db.unique/identity}
+   :trip-stop/id {:db/cardinality :db.cardinality/one
+                  :db/unique :db.unique/identity}
 
    :abbr {:db/cardinality :db.cardinality/one}
    :name {:db/cardinality :db.cardinality/one}
@@ -77,6 +79,8 @@
 (def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
              [(parent ?p ?c) (?c :parent ?p)]
              [(parent ?p ?c) (?c :parent ?p1) (parent ?p ?p1)]
+             [(self-and-children ?s ?a) (or (self ?s ?a)
+                                            (parent ?s ?a))]
              [(root? ?p) [(missing? $ ?p :parent)]]
              [(root ?e ?r) (and
                             (or (parent ?r ?e)
@@ -90,6 +94,9 @@
 
 (defn pull-many [& args]
   (apply (partial d/pull-many (get-db)) args))
+
+(defn pull [& args]
+  (apply (partial d/pull (get-db)) args))
 
 (comment
   (refresh-db!)
