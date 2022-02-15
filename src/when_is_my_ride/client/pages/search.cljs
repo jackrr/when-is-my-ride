@@ -1,8 +1,9 @@
-(ns when-is-my-ride.client.stops
+(ns when-is-my-ride.client.pages.search
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [when-is-my-ride.client.api :as api]
-            [when-is-my-ride.client.route :as route]))
+            [when-is-my-ride.client.route :as route]
+            [when-is-my-ride.client.router :refer [navigate]]))
 
 (rf/reg-sub ::search-results (fn [db]
                                (or (get-in db [::stops ::search-results]) [])))
@@ -28,7 +29,7 @@
       :db (assoc-in db [::stops ::loading] true)}
      {})))
 
-(defn search []
+(defn search [_]
   [:div {:className "p-3 rounded-xl shadow-lg max-w-md mx-auto border-bottom h-screen flex flex-col"}
    [:label "Enter station name:"]
    [:input {:className "my-2 px-2 rounded-md border"
@@ -37,11 +38,16 @@
     (let [results (rf/subscribe [::search-results])]
       [:div
        (map
-        (fn [r] [:div {:key (::id r)
-                       :className "flex gap-x-1 my-2"}
+        (fn [r] [:a {:key (::id r)
+                     :className "flex gap-x-1 my-2 cursor-pointer hover:bg-gray-200"
+                     :on-click #(navigate {:to (str "/stops/" (::id r))})}
                  (let [name (::name r)
                        match-name (get-in r [::match ::name])]
                    [:p (str name
                             (when (not (str/includes? name match-name)) (str " (" match-name  ")")))])
                  (map route/icon (::routes r))])
         @results)])]])
+
+(def route {:name :search
+            :path "/"
+            :view search})
