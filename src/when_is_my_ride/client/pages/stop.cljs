@@ -1,6 +1,5 @@
 (ns when-is-my-ride.client.pages.stop
-  (:require [clojure.string :as str]
-            [re-frame.core :as rf]
+  (:require [re-frame.core :as rf]
             [when-is-my-ride.client.api :as api]
             [when-is-my-ride.client.route :as route]))
 
@@ -51,7 +50,7 @@
          (if (> 1 min) "Now" (str min " min")))]])
 
 (defn view [_]
-  [:div {:className "mx-auto max-w-md"}
+  [:div {:className "container mx-auto max-w-md px-4"}
    [:h2 {:className "text-xl mb-4"} @(rf/subscribe [::stop-name])]
    (map (partial arrival (.valueOf (js/Date.))) @(rf/subscribe [::next-n-arrivals 20]))])
 
