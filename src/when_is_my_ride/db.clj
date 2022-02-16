@@ -1,7 +1,8 @@
 ;; Exposes a read-only Datascript interface to transit data
 ;; Encapsulates logic to keep transit data up-to-date from GTFS feeds
 (ns when-is-my-ride.db
-  (:require [datascript.core :as d]
+  (:require [datascript.core :as ds]
+            [manifold.deferred :as d]
             [when-is-my-ride.db.mta :as mta]
             [when-is-my-ride.db.nyc-ferry :as nyc-ferry]))
 
@@ -41,41 +42,43 @@
 (def STALE_THRESHOLD (* 1000 30))
 
 (defn- new-conn []
-  (d/create-conn schema))
+  (ds/create-conn schema))
 
 (def ^:private conn (new-conn))
 
+(def ^:private loading-next-conn (atom nil))
+
 (defn- refresh-db! []
-  (let [next (new-conn)]
-    (mta/load-all next)
-    (nyc-ferry/load-all next)
-    (d/transact! next [{:initialized-at (System/currentTimeMillis)}])
-    (d/reset-conn! conn @next))
-  true)
+  (println "Reloading DB")
+  (d/future
+    (let [next (new-conn)]
+    ;; TODO: parallelize
+      (mta/load-all next)
+      (nyc-ferry/load-all next)
+      (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
+      (ds/reset-conn! conn @next)
+      (println "DB refresh complete"))))
 
 (defn get-db
   "Provide conn to db of transit data, trigger an async refresh if older than threshold"
   []
-  (let [last-initialized
-        (some-> (d/q '[:find (max ?iat)
-                       :where
-                       [_ :initialized-at ?iat]]
-                     @conn)
-                first
-                first)]
-    (cond
-      (not last-initialized)
-      ;; Need to initialize the db
-      (do
-        (println "Reloading DB sync")
-        (refresh-db!))
-
-      (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis))
-      (do
-        ;; (println "Reloading DB async")
-        ;; (future (refresh-db!))
-        (println "Reloading DB sync")
-        (refresh-db!))))
+  (d/chain
+   @loading-next-conn
+   (fn [_]
+     (let [last-initialized
+           (some-> (ds/q '[:find (max ?iat)
+                           :where
+                           [_ :initialized-at ?iat]]
+                         @conn)
+                   first
+                   first)]
+       (when (or (not last-initialized)
+                 (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis)))
+         (let [deferred (refresh-db!)]
+           (reset! loading-next-conn deferred)
+           @(d/chain deferred
+                     (fn [_]
+                       (reset! loading-next-conn nil))))))))
   @conn)
 
 (def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
@@ -91,14 +94,14 @@
 
 (defn q [query & args]
   (if args
-    (apply (partial d/q query (get-db)) args)
-    (d/q query (get-db))))
+    (apply (partial ds/q query (get-db)) args)
+    (ds/q query (get-db))))
 
 (defn pull-many [& args]
-  (apply (partial d/pull-many (get-db)) args))
+  (apply (partial ds/pull-many (get-db)) args))
 
 (defn pull [& args]
-  (apply (partial d/pull (get-db)) args))
+  (apply (partial ds/pull (get-db)) args))
 
 (comment
   (refresh-db!)
@@ -112,9 +115,10 @@
   (q '[:find ?r
        :where
        [_ :route/id ?r]])
-  (q '[:find ?r
+  (q '[:find ?r ?name
        :where
-       [?r :route/id "A"]])
+       [?r :abbr "ER"]
+       [?r :name ?name]])
   (every?
    (fn [route]
      (not-empty
