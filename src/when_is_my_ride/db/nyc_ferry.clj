@@ -35,7 +35,10 @@
   conn)
 
 (defn load-all [conn]
-  (-> conn load-static load-trips))
+  (println "Loading NYC Ferry data")
+  (let [res (-> conn load-static load-trips)]
+    (println "Done loading NYC Ferry data")
+    res))
 
 (comment
   (-> (hc/get

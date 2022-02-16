@@ -52,9 +52,9 @@
   (println "Reloading DB")
   (d/future
     (let [next (new-conn)]
-    ;; TODO: parallelize
-      (mta/load-all next)
-      (nyc-ferry/load-all next)
+      @(d/zip
+        (d/future (mta/load-all next))
+        (d/future (nyc-ferry/load-all next)))
       (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
       (ds/reset-conn! conn @next)
       (println "DB refresh complete"))))
@@ -139,7 +139,7 @@
      "A")
   (q '[:find ?stop ?at
        :where
-       [?r :route/id "A"]
+       [?r :abbr "A"]
        [?ts :route ?r]
        [?ts :stop ?s]
        [?s :stop/id ?stop]

@@ -4,8 +4,9 @@
            [com.google.transit.realtime NyctSubway])
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
-            [datascript.core :as d]
+            [datascript.core :as ds]
             [hato.client :as hc]
+            [manifold.deferred :as d]
             [when-is-my-ride.env :as env]
             [when-is-my-ride.db.gtfs :as gtfs]
             [clojure.string :as str]))
@@ -41,14 +42,14 @@
                                .toString)})}))))
 
 (defn- load-static [conn]
-  (d/transact! conn [{:agency/id agency}])
+  (ds/transact! conn [{:agency/id agency}])
   (doall (map
           (fn [datoms]
-            (d/transact! conn datoms))
+            (ds/transact! conn datoms))
           (gtfs/read-stops "mta/stops.txt" agency)))
   (doall (map
           (fn [datoms]
-            (d/transact! conn datoms))
+            (ds/transact! conn datoms))
           (gtfs/read-routes "mta/routes.txt" agency)))
   (with-open [station-reader (-> "mta/stations.csv" io/resource io/reader)]
     (let [->id (partial gtfs/id-with-prefix agency)
@@ -63,43 +64,51 @@
                                    :name (get s station-name-idx)})
                           stations)
           complexes  (->> structured
-                               (reduce (fn [cs {:keys [complex-id name]}]
-                                         (if (get cs complex-id)
-                                           (update cs complex-id
-                                                   (fn [cplx]
-                                                     (let [names (distinct (conj (:names cplx) name))]
-                                                       {:n (inc (:n cplx))
-                                                        :names names
-                                                        :name (str/join " / " names)})))
-                                           (assoc cs complex-id {:n 1
-                                                                 :names [name]})))
-                                       {}))]
+                          (reduce (fn [cs {:keys [complex-id name]}]
+                                    (if (get cs complex-id)
+                                      (update cs complex-id
+                                              (fn [cplx]
+                                                (let [names (distinct (conj (:names cplx) name))]
+                                                  {:n (inc (:n cplx))
+                                                   :names names
+                                                   :name (str/join " / " names)})))
+                                      (assoc cs complex-id {:n 1
+                                                            :names [name]})))
+                                  {}))]
       (doall
        (map
         (fn [{:keys [id complex-id]}]
           (when (< 1 (get-in complexes [complex-id :n]))
-            (d/transact! conn
-                         [{:db/ident complex-id
-                           :stop/id complex-id
-                           :name (get-in complexes [complex-id :name])
-                           :agency [:agency/id agency]}
-                          {:db/ident id
-                           :stop/id id
-                           :agency [:agency/id agency]
-                           :parent [:stop/id complex-id]}])))
+            (ds/transact! conn
+                          [{:db/ident complex-id
+                            :stop/id complex-id
+                            :name (get-in complexes [complex-id :name])
+                            :agency [:agency/id agency]}
+                           {:db/ident id
+                            :stop/id id
+                            :agency [:agency/id agency]
+                            :parent [:stop/id complex-id]}])))
         structured))))
   conn)
 
-(defn- load-trips [conn]
+(defn- load-trip [conn route]
   (doall (map (fn [datoms]
-                (d/transact! conn datoms))
-              (apply concat (map (partial trip-data conn) routes))))
+                (ds/transact! conn datoms))
+              (trip-data conn route))))
+
+(defn- load-trips [conn]
+  @(apply d/zip
+          (map #(d/future (load-trip conn %)) routes))
   conn)
 
 (defn load-all [conn]
-  (-> conn load-static load-trips))
+  (println "Loading MTA data")
+  (let [res (-> conn load-static load-trips)]
+    (println "Done loading MTA data")
+    res))
 
 (comment
+
   (def res (fetch-data "gtfs-ace"))
   (def entity (.getEntity res 0))
   (def tu (.getTripUpdate entity))
