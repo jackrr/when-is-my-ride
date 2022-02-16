@@ -72,8 +72,10 @@
 
       (< (+ last-initialized STALE_THRESHOLD) (System/currentTimeMillis))
       (do
-        (println "Reloading DB async")
-        (future (refresh-db!)))))
+        ;; (println "Reloading DB async")
+        ;; (future (refresh-db!))
+        (println "Reloading DB sync")
+        (refresh-db!))))
   @conn)
 
 (def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
