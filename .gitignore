@@ -7,7 +7,7 @@ pom.xml.asc
 *.jar
 *.class
 
-resources/secrets.edn
+secrets/secrets.edn
 tmp/
 
 /out/

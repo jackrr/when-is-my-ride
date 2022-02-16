@@ -19,5 +19,6 @@
   :main ^:skip-aot when-is-my-ride.core
   :target-path "target/%s"
   :java-source-paths ["protoc/"]
-  :profiles {:uberjar {:aot :all
+  :profiles {:dev {:resource-paths ["secrets"]}
+             :uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
