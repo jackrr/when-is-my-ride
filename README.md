@@ -2,7 +2,7 @@
 
 ![Build status](https://github.com/jackrr/when-is-my-ride/actions/workflows/main.yaml/badge.svg?branch=main)
 
-A simple app that enables viewing upcoming public transit data at stops. This app is free to use and hosted at https://whenismyride.info.
+A simple app that enables viewing upcoming public transit data at stops. This app is free to use and hosted at [whenismyride.info](https://www.whenismyride.info).
 
 ## Contributions
 
