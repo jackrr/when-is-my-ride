@@ -11,3 +11,6 @@
                                      (rf/dispatch dispatch)
                                      (swap! timeouts dissoc id))
                                    delay))))
+
+(defn loading []
+  [:p {:className "italic color-gray-400"} "Loading..."])
