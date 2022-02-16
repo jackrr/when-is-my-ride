@@ -9,6 +9,7 @@
             [systemic.core :as systemic :refer [defsys]]
             [when-is-my-ride.api :as api]
             [when-is-my-ride.cors :as cors]
+            [when-is-my-ride.env :refer [env]]
             [clojure.java.io :as io]))
 
 (def app
@@ -16,7 +17,7 @@
    (http/router
     ["/api"
      {:interceptors [(parameters/parameters-interceptor)
-                     (cors/interceptor {:access-control-allow-origin [#".*"]
+                     (cors/interceptor {:access-control-allow-origin [(re-pattern (env "ALLOW_ORIGIN"))]
                                         :access-control-allow-methods [:get :put :post :delete]})]}
      ["/stops"
       ["" {:get {:interceptors [{:leave (fn [& args] (apply api/stops-handler args))}]}}]
