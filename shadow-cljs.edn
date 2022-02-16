@@ -26,7 +26,8 @@
     :http-port 8280}
 
    :dev
-   {:build-hooks [(teknql.tailwind/start-watch!)]}
+   {:build-hooks [(teknql.tailwind/start-watch!)]
+    :closure-defines {when-is-my-ride.client.api/API_BASE "http://localhost:3000/api"}}
 
    :release
    {:build-hooks [(teknql.tailwind/compile-release!)]}

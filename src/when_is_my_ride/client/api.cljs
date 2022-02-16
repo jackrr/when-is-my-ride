@@ -3,11 +3,13 @@
             [re-frame.core :as rf]
             [day8.re-frame.http-fx]))
 
+(goog-define API_BASE "/api")
+
 (rf/reg-event-fx
  ::fetch
  (fn [_ [_ {:keys [path on-success]}]]
    {:http-xhrio
     {:method :get
-     :uri (str "http://localhost:3000/api" path)
+     :uri (str API_BASE path)
      :response-format (ajax/json-response-format {:keywords? true})
      :on-success on-success}}))
