@@ -12,7 +12,7 @@
             [when-is-my-ride.env :refer [env]]
             [clojure.java.io :as io]))
 
-(def app
+(defn app []
   (http/ring-handler
    (http/router
     ["/api"
@@ -37,6 +37,6 @@
 
 (defsys *server* []
   :closure
-  (let [server (jetty/run-jetty #'app {:port 3000, :join? false, :async? true})]
+  (let [server (jetty/run-jetty (app) {:port 3000, :join? false, :async? true})]
     {:value server
      :stop (fn [] (.stop server))}))
