@@ -4,12 +4,12 @@
            [com.google.transit.realtime NyctSubway])
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
-            [datascript.core :as ds]
+            [clojure.string :as str]
             [hato.client :as hc]
             [manifold.deferred :as d]
+            [manifold.stream :as s]
             [when-is-my-ride.env :as env]
-            [when-is-my-ride.db.gtfs :as gtfs]
-            [clojure.string :as str]))
+            [when-is-my-ride.db.gtfs :as gtfs]))
 
 (def agency "mta")
 
@@ -27,30 +27,31 @@
       :body
       (GtfsRealtime$FeedMessage/parseFrom registry)))
 
-(defn- trip-data [conn route]
-  (map gtfs/trip-update->datoms
-       (-> route
-           fetch-data
-           (gtfs/feed-messages->trip-updates
-            {:agency agency
-             :conn conn
-             :get-additional-fields
-             (fn [trip]
-               {:direction (-> trip
-                               (.getExtension NyctSubway/nyctTripDescriptor)
-                               .getDirection
-                               .toString)})}))))
+(defn- trip-updates [query route]
+  (-> route
+      fetch-data
+      (gtfs/feed-messages->trip-updates
+       {:agency agency
+        :query query
+        :get-additional-fields
+        (fn [trip]
+          {:direction (-> trip
+                          (.getExtension NyctSubway/nyctTripDescriptor)
+                          .getDirection
+                          .toString)})})))
 
-(defn- load-static [conn]
-  (ds/transact! conn [{:agency/id agency}])
-  (doall (map
-          (fn [datoms]
-            (ds/transact! conn datoms))
-          (gtfs/read-stops "mta/stops.txt" agency)))
-  (doall (map
-          (fn [datoms]
-            (ds/transact! conn datoms))
-          (gtfs/read-routes "mta/routes.txt" agency)))
+(defn- load-trip [txns query route]
+  (doall (map #(->> % gtfs/trip-update->txn (s/put! txns))
+              (trip-updates query route))))
+
+(defn- load-trips [txns query]
+  @(apply d/zip
+          (map #(d/future (load-trip txns query %)) routes)))
+
+(defn- load-static [txns]
+  (s/put! txns [{:agency/id agency}])
+  (gtfs/read-stops txns "mta/stops.txt" agency)
+  (gtfs/read-routes txns "mta/routes.txt" agency)
   (with-open [station-reader (-> "mta/stations.csv" io/resource io/reader)]
     (let [->id (partial gtfs/id-with-prefix agency)
           station-d (csv/read-csv station-reader)
@@ -79,33 +80,22 @@
        (map
         (fn [{:keys [id complex-id]}]
           (when (< 1 (get-in complexes [complex-id :n]))
-            (ds/transact! conn
-                          [{:db/ident complex-id
-                            :stop/id complex-id
-                            :name (get-in complexes [complex-id :name])
-                            :agency [:agency/id agency]}
-                           {:db/ident id
-                            :stop/id id
-                            :agency [:agency/id agency]
-                            :parent [:stop/id complex-id]}])))
-        structured))))
-  conn)
+            (s/put! txns
+                    [{:db/ident complex-id
+                      :stop/id complex-id
+                      :name (get-in complexes [complex-id :name])
+                      :agency [:agency/id agency]}
+                     {:db/ident id
+                      :stop/id id
+                      :agency [:agency/id agency]
+                      :parent [:stop/id complex-id]}])))
+        structured)))))
 
-(defn- load-trip [conn route]
-  (doall (map (fn [datoms]
-                (ds/transact! conn datoms))
-              (trip-data conn route))))
-
-(defn- load-trips [conn]
-  @(apply d/zip
-          (map #(d/future (load-trip conn %)) routes))
-  conn)
-
-(defn load-all [conn]
+(defn load-all [txns query]
   (println "Loading MTA data")
-  (let [res (-> conn load-static load-trips)]
-    (println "Done loading MTA data")
-    res))
+  (load-static txns)
+  (load-trips txns query)
+  (println "Done loading MTA data"))
 
 (comment
 

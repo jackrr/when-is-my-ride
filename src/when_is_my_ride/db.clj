@@ -3,8 +3,10 @@
 (ns when-is-my-ride.db
   (:require [datascript.core :as ds]
             [manifold.deferred :as d]
+            [manifold.stream :as s]
             [when-is-my-ride.db.mta :as mta]
-            [when-is-my-ride.db.nyc-ferry :as nyc-ferry]))
+            [when-is-my-ride.db.nyc-ferry :as nyc-ferry]
+            [when-is-my-ride.db :as db]))
 
 (def schema
   {:initialized-at {:db/cardinality :db.cardinality/one}
@@ -51,10 +53,16 @@
 (defn- refresh-db! []
   (println "Reloading DB")
   (d/future
-    (let [next (new-conn)]
+    (let [next (new-conn)
+          query (fn [& args] (apply (partial ds/q (first args) @next) (rest args)))
+          txns (s/stream)
+          to-insert (s/buffer count 100 txns)]
+      (s/consume (fn [txn]
+                   (ds/transact! next txn))
+                 to-insert)
       @(d/zip
-        (d/future (mta/load-all next))
-        (d/future (nyc-ferry/load-all next)))
+        (d/future (mta/load-all txns query))
+        (d/future (nyc-ferry/load-all txns query)))
       (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
       (ds/reset-conn! conn @next)
       (println "DB refresh complete"))))
