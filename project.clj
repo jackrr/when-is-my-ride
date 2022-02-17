@@ -4,6 +4,7 @@
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[com.google.protobuf/protobuf-java "3.8.0"]
+                 [com.taoensso/tufte "2.2.0"]
                  [datascript "1.3.5"]
                  [hato "0.8.2"]
                  [manifold "0.2.3"]

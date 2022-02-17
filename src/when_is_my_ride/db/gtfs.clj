@@ -1,40 +1,42 @@
 (ns when-is-my-ride.db.gtfs
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
-            [manifold.stream :as s]))
+            [manifold.stream :as s]
+            [taoensso.tufte :as tufte]))
 
 (defn id-with-prefix [prefix id]
   (when (not-empty id)
     (str prefix "-" id)))
 
 (defn feed-messages->trip-updates [feed {:keys [get-additional-fields agency query]}]
-  (let [->id (partial id-with-prefix agency)]
-    (for [i (range (.getEntityCount feed))
-          :let [tu (-> feed (.getEntity i) .getTripUpdate)
-                trip (some-> tu .getTrip)
-                trip-id (-> trip .getTripId ->id)
-                route-id (if (.hasRouteId trip)
-                           (-> trip .getRouteId ->id)
-                           (first (query '[:find [?rid]
-                                           :in $ ?tid
-                                           :where
-                                           [?t :trip/id ?tid]
-                                           [?t :route ?r]
-                                           [?r :route/id ?rid]]
-                                         trip-id)))]
-          :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
-      (cond-> {:agency-id agency
-               :trip-id trip-id
-               :route-id route-id
-               :stops (map (fn [stop]
-                             (let [sid (-> stop .getStopId ->id)
-                                   at (-> stop .getArrival .getTime)]
-                               {:stop-id sid
-                                :arrival-time at
-                                :ts-id (->id (str "ts-" at "-" sid))}))
-                           (.getStopTimeUpdateList tu))}
-        (some? get-additional-fields)
-        (merge (get-additional-fields trip))))))
+  (tufte/p ::feed-messages->trip-updates
+           (let [->id (partial id-with-prefix agency)]
+             (for [i (range (.getEntityCount feed))
+                   :let [tu (-> feed (.getEntity i) .getTripUpdate)
+                         trip (some-> tu .getTrip)
+                         trip-id (-> trip .getTripId ->id)
+                         route-id (if (.hasRouteId trip)
+                                    (-> trip .getRouteId ->id)
+                                    (first (query '[:find [?rid]
+                                                    :in $ ?tid
+                                                    :where
+                                                    [?t :trip/id ?tid]
+                                                    [?t :route ?r]
+                                                    [?r :route/id ?rid]]
+                                                  trip-id)))]
+                   :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
+               (cond-> {:agency-id agency
+                        :trip-id trip-id
+                        :route-id route-id
+                        :stops (map (fn [stop]
+                                      (let [sid (-> stop .getStopId ->id)
+                                            at (-> stop .getArrival .getTime)]
+                                        {:stop-id sid
+                                         :arrival-time at
+                                         :ts-id (->id (str "ts-" at "-" sid))}))
+                                    (.getStopTimeUpdateList tu))}
+                 (some? get-additional-fields)
+                 (merge (get-additional-fields trip)))))))
 
 (defn trip-update->txn [{:keys [agency-id direction route-id trip-id stops]}]
   (conj

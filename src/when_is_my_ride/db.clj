@@ -6,7 +6,8 @@
             [manifold.stream :as s]
             [when-is-my-ride.db.mta :as mta]
             [when-is-my-ride.db.nyc-ferry :as nyc-ferry]
-            [when-is-my-ride.db :as db]))
+            [when-is-my-ride.db :as db]
+            [taoensso.tufte :as tufte]))
 
 (def schema
   {:initialized-at {:db/cardinality :db.cardinality/one}
@@ -51,21 +52,23 @@
 (def ^:private loading-next-conn (atom nil))
 
 (defn- refresh-db! []
-  (println "Reloading DB")
-  (d/future
-    (let [next (new-conn)
-          query (fn [& args] (apply (partial ds/q (first args) @next) (rest args)))
-          txns (s/stream)
-          to-insert (s/buffer count 100 txns)]
-      (s/consume (fn [txn]
-                   (ds/transact! next txn))
-                 to-insert)
-      @(d/zip
-        (d/future (mta/load-all txns query))
-        (d/future (nyc-ferry/load-all txns query)))
-      (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
-      (ds/reset-conn! conn @next)
-      (println "DB refresh complete"))))
+  (tufte/p ::refresh-db!
+           (println "Reloading DB")
+           (d/future
+             (let [next (new-conn)
+                   query (fn [& args] (apply (partial ds/q (first args) @next) (rest args)))
+                   txns (s/stream)
+                   to-insert (s/buffer count 100 txns)]
+               (s/consume (fn [txn]
+                            (tufte/p ::refresh-db-transact
+                                     (ds/transact! next txn)))
+                          to-insert)
+               @(d/zip
+                 (d/future (mta/load-all txns query))
+                 (d/future (nyc-ferry/load-all txns query)))
+               (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
+               (ds/reset-conn! conn @next)
+               (println "DB refresh complete")))))
 
 (defn get-db
   "Provide conn to db of transit data, trigger an async refresh if older than threshold"
@@ -113,6 +116,12 @@
 
 (comment
   (refresh-db!)
+
+  (tufte/add-basic-println-handler! {})
+  (tufte/profile
+   {:dynamic? true}
+   (dotimes [_ 1]
+     @(refresh-db!)))
 
   ;; Datascript does not store transaction timestamps
   (q '[:find ?tx-time

@@ -9,7 +9,8 @@
             [manifold.deferred :as d]
             [manifold.stream :as s]
             [when-is-my-ride.env :as env]
-            [when-is-my-ride.db.gtfs :as gtfs]))
+            [when-is-my-ride.db.gtfs :as gtfs]
+            [taoensso.tufte :as tufte]))
 
 (def agency "mta")
 
@@ -22,10 +23,11 @@
   ["gtfs-ace" "gtfs-bdfm" "gtfs-g" "gtfs-jz" "gtfs-nqrw" "gtfs-l" "gtfs" "gtfs-si"])
 
 (defn- fetch-data [route]
-  (-> (str "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F" route)
-      (hc/get {:headers {"x-api-key" (or (env/env "MTA_API_KEY") "")} :as :byte-array})
-      :body
-      (GtfsRealtime$FeedMessage/parseFrom registry)))
+  (tufte/p ::fetch-data
+           (-> (str "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F" route)
+               (hc/get {:headers {"x-api-key" (or (env/env "MTA_API_KEY") "")} :as :byte-array})
+               :body
+               (GtfsRealtime$FeedMessage/parseFrom registry))))
 
 (defn- trip-updates [query route]
   (-> route
@@ -41,61 +43,64 @@
                           .toString)})})))
 
 (defn- load-trip [txns query route]
-  (doall (map #(->> % gtfs/trip-update->txn (s/put! txns))
-              (trip-updates query route))))
+  (tufte/p ::load-trip
+           (doall (map #(->> % gtfs/trip-update->txn (s/put! txns))
+                       (trip-updates query route)))))
 
 (defn- load-trips [txns query]
   @(apply d/zip
           (map #(d/future (load-trip txns query %)) routes)))
 
 (defn- load-static [txns]
-  (s/put! txns [{:agency/id agency}])
-  (gtfs/read-stops txns "mta/stops.txt" agency)
-  (gtfs/read-routes txns "mta/routes.txt" agency)
-  (with-open [station-reader (-> "mta/stations.csv" io/resource io/reader)]
-    (let [->id (partial gtfs/id-with-prefix agency)
-          station-d (csv/read-csv station-reader)
-          station-headers (first station-d)
-          stations (rest station-d)
-          station-id-idx (.indexOf station-headers "Complex ID")
-          station-stop-id-idx (.indexOf station-headers "GTFS Stop ID")
-          station-name-idx (.indexOf station-headers "Stop Name")
-          structured (map (fn [s] {:id (->id (get s station-stop-id-idx))
-                                   :complex-id (->id (str "cplx-" (get s station-id-idx)))
-                                   :name (get s station-name-idx)})
-                          stations)
-          complexes  (->> structured
-                          (reduce (fn [cs {:keys [complex-id name]}]
-                                    (if (get cs complex-id)
-                                      (update cs complex-id
-                                              (fn [cplx]
-                                                (let [names (distinct (conj (:names cplx) name))]
-                                                  {:n (inc (:n cplx))
-                                                   :names names
-                                                   :name (str/join " / " names)})))
-                                      (assoc cs complex-id {:n 1
-                                                            :names [name]})))
-                                  {}))]
-      (doall
-       (map
-        (fn [{:keys [id complex-id]}]
-          (when (< 1 (get-in complexes [complex-id :n]))
-            (s/put! txns
-                    [{:db/ident complex-id
-                      :stop/id complex-id
-                      :name (get-in complexes [complex-id :name])
-                      :agency [:agency/id agency]}
-                     {:db/ident id
-                      :stop/id id
-                      :agency [:agency/id agency]
-                      :parent [:stop/id complex-id]}])))
-        structured)))))
+  (tufte/p ::load-static
+           (s/put! txns [{:agency/id agency}])
+           (gtfs/read-stops txns "mta/stops.txt" agency)
+           (gtfs/read-routes txns "mta/routes.txt" agency)
+           (with-open [station-reader (-> "mta/stations.csv" io/resource io/reader)]
+             (let [->id (partial gtfs/id-with-prefix agency)
+                   station-d (csv/read-csv station-reader)
+                   station-headers (first station-d)
+                   stations (rest station-d)
+                   station-id-idx (.indexOf station-headers "Complex ID")
+                   station-stop-id-idx (.indexOf station-headers "GTFS Stop ID")
+                   station-name-idx (.indexOf station-headers "Stop Name")
+                   structured (map (fn [s] {:id (->id (get s station-stop-id-idx))
+                                            :complex-id (->id (str "cplx-" (get s station-id-idx)))
+                                            :name (get s station-name-idx)})
+                                   stations)
+                   complexes  (->> structured
+                                   (reduce (fn [cs {:keys [complex-id name]}]
+                                             (if (get cs complex-id)
+                                               (update cs complex-id
+                                                       (fn [cplx]
+                                                         (let [names (distinct (conj (:names cplx) name))]
+                                                           {:n (inc (:n cplx))
+                                                            :names names
+                                                            :name (str/join " / " names)})))
+                                               (assoc cs complex-id {:n 1
+                                                                     :names [name]})))
+                                           {}))]
+               (doall
+                (map
+                 (fn [{:keys [id complex-id]}]
+                   (when (< 1 (get-in complexes [complex-id :n]))
+                     (s/put! txns
+                             [{:db/ident complex-id
+                               :stop/id complex-id
+                               :name (get-in complexes [complex-id :name])
+                               :agency [:agency/id agency]}
+                              {:db/ident id
+                               :stop/id id
+                               :agency [:agency/id agency]
+                               :parent [:stop/id complex-id]}])))
+                 structured))))))
 
 (defn load-all [txns query]
-  (println "Loading MTA data")
-  (load-static txns)
-  (load-trips txns query)
-  (println "Done loading MTA data"))
+  (tufte/p ::load-all
+           (println "Loading MTA data")
+           (load-static txns)
+           (load-trips txns query)
+           (println "Done loading MTA data")))
 
 (comment
 
