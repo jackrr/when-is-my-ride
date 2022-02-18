@@ -56,27 +56,31 @@
                (ds/reset-conn! conn @next)
                (info "DB refresh complete")))))
 
+(defn- cold?
+  ([] (cold? STALE_THRESHOLD))
+  ([threshold]
+   (let [last-initialized
+         (some-> (ds/q '[:find (max ?iat)
+                         :where
+                         [_ :initialized-at ?iat]]
+                       @conn)
+                 first
+                 first)]
+     (or (not last-initialized)
+         (< (+ last-initialized threshold) (System/currentTimeMillis))))))
+
 (def ^:private hot-lock (Object.))
 
 (defn ensure-hot
   ([] (ensure-hot STALE_THRESHOLD))
   ([threshold]
    (locking hot-lock
-     (let [last-initialized
-           (some-> (ds/q '[:find (max ?iat)
-                           :where
-                           [_ :initialized-at ?iat]]
-                         @conn)
-                   first
-                   first)]
-       (when (or (not last-initialized)
-                 (< (+ last-initialized threshold) (System/currentTimeMillis)))
-         @(refresh-db!))))))
+     (when (cold? threshold) @(refresh-db!)))))
 
 (defn get-db
   "Provide conn to db of transit data, block on refresh if older than threshold"
   []
-  (ensure-hot)
+  (when cold? (ensure-hot))
   @conn)
 
 (def ^:private keep-hot-interval (atom nil))
