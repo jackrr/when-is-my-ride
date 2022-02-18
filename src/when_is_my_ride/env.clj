@@ -15,4 +15,5 @@
   [key]
   (some-> key
           env
+          (Integer/parseInt)
           (* 1000)))
