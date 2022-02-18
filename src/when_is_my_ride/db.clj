@@ -18,16 +18,23 @@
                                 (self ?e ?r))
                             (root? ?r))]])
 
-(defn q [query & args]
-  (if args
-    (apply (partial ds/q query (oven/get-db)) args)
-    (ds/q query (oven/get-db))))
+(defn- args->positionals [query-or-conf args]
+  (let [has-conf? (map? query-or-conf)]
+    {:conf (if has-conf? query-or-conf {})
+     :query (if has-conf? (first args) query-or-conf)
+     :rest (if has-conf? (rest args) args)}))
 
-(defn pull-many [& args]
-  (apply (partial ds/pull-many (oven/get-db)) args))
+(defn q [query-or-conf & args]
+  (let [{:keys [conf query rest]} (args->positionals query-or-conf args)]
+    (apply (partial ds/q query (oven/get-db conf)) rest)))
 
-(defn pull [& args]
-  (apply (partial ds/pull (oven/get-db)) args))
+(defn pull-many [query-or-conf & args]
+  (let [{:keys [conf query rest]} (args->positionals query-or-conf args)]
+    (apply (partial ds/pull-many (oven/get-db conf) query) rest)))
+
+(defn pull [query-or-conf & args]
+  (let [{:keys [conf query rest]} (args->positionals query-or-conf args)]
+    (apply (partial ds/pull (oven/get-db conf) query) rest)))
 
 (comment
   ;; Datascript does not store transaction timestamps

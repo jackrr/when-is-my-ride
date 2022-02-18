@@ -1,5 +1,6 @@
 (ns when-is-my-ride.server
   (:require [clojure.java.io :as io]
+            [clojure.tools.logging :refer [error]]
             [reitit.dev.pretty :as pretty]
             [reitit.http :as http]
             [reitit.http.interceptors.exception :as exception]
@@ -25,6 +26,8 @@
      {:exception pretty/exception
       :interceptors [(parameters/parameters-interceptor)
                      (exception/exception-interceptor)
+                     {:error (fn [ctx]
+                               (error (:error ctx)))}
                      (cors/interceptor {:access-control-allow-origin [(re-pattern (env "ALLOW_ORIGIN"))]
                                         :access-control-allow-methods [:get :put :post :delete]})
                      {:enter (fn [ctx]
