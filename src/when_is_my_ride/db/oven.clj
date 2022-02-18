@@ -95,6 +95,7 @@
    @conn))
 
 (def ^:private keep-hot-interval (atom nil))
+(def ^:private keep-hot-killer (atom nil))
 
 (defn ensure-hot-for [duration]
   (let [stop-current! (fn []
@@ -102,14 +103,17 @@
                           (future-cancel @keep-hot-interval)
                           (reset! keep-hot-interval nil)))]
     (stop-current!)
+    (when @keep-hot-killer (future-cancel @keep-hot-killer))
     (reset! keep-hot-interval
             (let [refresh-interval (/ STALE_THRESHOLD 2)]
-              (do-every (fn []
-                          (info "Ensuring it's hot")
-                          (ensure-hot refresh-interval)) refresh-interval)))
-    (d/future
-      (Thread/sleep duration)
-      (stop-current!))))
+              (do-every refresh-interval
+                        (fn []
+                          (info "Ensuring hot")
+                          (ensure-hot refresh-interval)))))
+    (reset! keep-hot-killer
+            (future
+              (Thread/sleep duration)
+              (stop-current!)))))
 
 (comment
   (refresh-db!)

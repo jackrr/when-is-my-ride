@@ -33,7 +33,7 @@
                      {:enter (fn [ctx]
                                (db/ensure-hot-for
                                 (or (env-seconds-duration "DB_KEEP_HOT_SECONDS")
-                                    (* 5 60 1000)))
+                                    (* 2 60 1000)))
                                ctx)}]}
      ["/stops"
       ["" {:get {:interceptors [{:leave
