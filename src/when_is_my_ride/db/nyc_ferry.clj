@@ -1,6 +1,7 @@
 (ns when-is-my-ride.db.nyc-ferry
   (:import [com.google.transit.realtime GtfsRealtime$FeedMessage])
-  (:require [manifold.stream :as s]
+  (:require [clojure.tools.logging :refer [debug]]
+            [manifold.stream :as s]
             [hato.client :as hc]
             [when-is-my-ride.db.gtfs :as gtfs]
             [taoensso.tufte :as tufte]))
@@ -26,11 +27,11 @@
 
 (defn load-all [txns query]
   (tufte/p ::load-all
-           (println "Loading NYC Ferry data")
+           (debug "Loading NYC Ferry data")
            (load-static txns)
            (load-trips txns query)
            (s/close! txns)
-           (println "Done loading NYC Ferry data")))
+           (debug "Done loading NYC Ferry data")))
 
 (comment
   (-> (hc/get

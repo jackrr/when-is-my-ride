@@ -1,9 +1,11 @@
 (ns when-is-my-ride.server
   (:require [clojure.java.io :as io]
+            [reitit.dev.pretty :as pretty]
             [reitit.http :as http]
-            [reitit.ring :as ring]
+            [reitit.http.interceptors.exception :as exception]
             [reitit.http.interceptors.parameters :as parameters]
             [reitit.interceptor.sieppari]
+            [reitit.ring :as ring]
             [sieppari.async.manifold]
             [ring.adapter.jetty :as jetty]
             [muuntaja.interceptor]
@@ -20,7 +22,9 @@
   (http/ring-handler
    (http/router
     ["/api"
-     {:interceptors [(parameters/parameters-interceptor)
+     {:exception pretty/exception
+      :interceptors [(parameters/parameters-interceptor)
+                     (exception/exception-interceptor)
                      (cors/interceptor {:access-control-allow-origin [(re-pattern (env "ALLOW_ORIGIN"))]
                                         :access-control-allow-methods [:get :put :post :delete]})
                      {:enter (fn [ctx]

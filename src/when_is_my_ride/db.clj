@@ -4,8 +4,8 @@
   (:require [datascript.core :as ds]
             [when-is-my-ride.db.oven :as oven]))
 
-(def ensure-hot oven/ensure-hot)
-(def ensure-hot-for oven/ensure-hot-for)
+(defn ensure-hot [& args] (apply oven/ensure-hot args))
+(defn ensure-hot-for [& args] (apply oven/ensure-hot-for args))
 
 (def rules '[[(self ?e1 ?e2) [(identity ?e1) ?e2]]
              [(parent ?p ?c) (?c :parent ?p)]

@@ -5,6 +5,7 @@
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.tools.logging :refer [debug]]
             [hato.client :as hc]
             [manifold.deferred :as d]
             [manifold.stream :as s]
@@ -102,11 +103,11 @@
 
 (defn load-all [txns query]
   (tufte/p ::load-all
-           (println "Loading MTA data")
+           (debug "Loading MTA data")
            (load-static txns)
            (load-trips txns query)
            (s/close! txns)
-           (println "Done loading MTA data")))
+           (debug "Done loading MTA data")))
 
 (comment
 

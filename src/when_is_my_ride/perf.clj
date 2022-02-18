@@ -1,5 +1,6 @@
 (ns when-is-my-ride.perf
-  (:require [systemic.core :refer [defsys]]
+  (:require [clojure.tools.logging :refer [info]]
+            [systemic.core :refer [defsys]]
             [taoensso.tufte :as tufte]
             [when-is-my-ride.env :refer [env]]
             [when-is-my-ride.util :refer [do-every]]))
@@ -11,7 +12,7 @@
 
 (defn log-perf-stats []
   (when-let [stats (not-empty @stats-acc)]
-    (println (tufte/format-grouped-pstats stats))))
+    (info (tufte/format-grouped-pstats stats))))
 
 (defsys *perf* []
   :closure

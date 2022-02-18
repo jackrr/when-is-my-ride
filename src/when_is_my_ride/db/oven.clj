@@ -1,5 +1,6 @@
 (ns when-is-my-ride.db.oven
-  (:require [datascript.core :as ds]
+  (:require [clojure.tools.logging :refer [debug info]]
+            [datascript.core :as ds]
             [manifold.deferred :as d]
             [manifold.stream :as s]
             [when-is-my-ride.db.mta :as mta]
@@ -18,7 +19,7 @@
 (def ^:private conn (new-empty))
 
 (defn- refresh-db! []
-  (println "Reloading DB")
+  (info "Reloading DB")
   (d/future
     (tufte/p ::refresh-db!
              (let [next (new-empty)
@@ -38,7 +39,7 @@
                    (let [msg @(s/try-take! to-insert ::drained 1000 ::timeout)]
                      (swap! count inc)
                      (when (= (mod @count 500) 0)
-                       (println "Processed " @count " txns"))
+                       (debug "Processed " @count " txns"))
 
                      (cond
                        (= msg ::drained)
@@ -49,11 +50,11 @@
 
                        :else
                        (ds/transact! next msg))))
-                 (println "Processed " @count " txns"))
+                 (info "Processed " @count " txns"))
 
                (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
                (ds/reset-conn! conn @next)
-               (println "DB refresh complete")))))
+               (info "DB refresh complete")))))
 
 (def ^:private hot-lock (Object.))
 
@@ -75,22 +76,22 @@
 (defn get-db
   "Provide conn to db of transit data, block on refresh if older than threshold"
   []
-  (println "In get-db")
   (ensure-hot)
-  (println "Done waiting for db refresh")
   @conn)
 
-(def ^:private hot-interval (atom nil))
+(def ^:private keep-hot-interval (atom nil))
 
 (defn ensure-hot-for [duration]
   (let [stop-current! (fn []
-                        (when @hot-interval
-                          (future-cancel @hot-interval)
-                          (reset! hot-interval nil)))]
+                        (when @keep-hot-interval
+                          (future-cancel @keep-hot-interval)
+                          (reset! keep-hot-interval nil)))]
     (stop-current!)
-    (reset! hot-interval
+    (reset! keep-hot-interval
             (let [refresh-interval (/ STALE_THRESHOLD 2)]
-              (do-every #(ensure-hot refresh-interval) refresh-interval)))
+              (do-every (fn []
+                          (info "Ensuring it's hot")
+                          (ensure-hot refresh-interval)) refresh-interval)))
     (d/future
       (Thread/sleep duration)
       (stop-current!))))
