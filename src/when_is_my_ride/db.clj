@@ -52,20 +52,39 @@
 (def ^:private loading-next-conn (atom nil))
 
 (defn- refresh-db! []
-  (tufte/p ::refresh-db!
-           (println "Reloading DB")
-           (d/future
+  (println "Reloading DB")
+  (d/future
+    (tufte/p ::refresh-db!
              (let [next (new-conn)
                    query (fn [& args] (apply (partial ds/q (first args) @next) (rest args)))
+                   mta-txns (s/stream)
+                   ferry-txns (s/stream)
                    txns (s/stream)
-                   to-insert (s/buffer count 100 txns)]
-               (s/consume (fn [txn]
-                            (tufte/p ::refresh-db-transact
-                                     (ds/transact! next txn)))
-                          to-insert)
-               @(d/zip
-                 (d/future (mta/load-all txns query))
-                 (d/future (nyc-ferry/load-all txns query)))
+                   to-insert (s/buffer count 1500 txns)]
+               (s/connect mta-txns txns {:downstream? false})
+               (s/connect ferry-txns txns {:downstream? false})
+               (d/future (mta/load-all mta-txns query))
+               (d/future (nyc-ferry/load-all ferry-txns query))
+               (let [count (atom 0)]
+                 (while (not (and (s/drained? mta-txns)
+                                  (s/drained? ferry-txns)
+                                  (= 0 (-> to-insert s/description :buffer-size))))
+                   (let [msg @(s/try-take! to-insert ::drained 1000 ::timeout)]
+                     (swap! count inc)
+                     (when (= (mod @count 500) 0)
+                       (println "Processed " @count " txns"))
+
+                     (cond
+                       (= msg ::drained)
+                       (println msg)
+
+                       (= msg ::timeout)
+                       (println msg)
+
+                       :else
+                       (ds/transact! next msg))))
+                 (println "Processed " @count " txns"))
+
                (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
                (ds/reset-conn! conn @next)
                (println "DB refresh complete")))))
@@ -117,10 +136,10 @@
 (comment
   (refresh-db!)
 
-  (tufte/add-basic-println-handler! {})
+  (tufte/add-basic-println-handler! {:format-pstats-opts {:columns [:n-calls :p50 :mean :clock :total]}})
   (tufte/profile
    {:dynamic? true}
-   (dotimes [_ 1]
+   (dotimes [_ 2]
      @(refresh-db!)))
 
   ;; Datascript does not store transaction timestamps

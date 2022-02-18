@@ -29,23 +29,28 @@
                :body
                (GtfsRealtime$FeedMessage/parseFrom registry))))
 
-(defn- trip-updates [query route]
-  (-> route
-      fetch-data
-      (gtfs/feed-messages->trip-updates
-       {:agency agency
-        :query query
-        :get-additional-fields
-        (fn [trip]
-          {:direction (-> trip
-                          (.getExtension NyctSubway/nyctTripDescriptor)
-                          .getDirection
-                          .toString)})})))
+(defn- trip-txns [query route]
+  (tufte/p ::trip-txns
+           (-> route
+               fetch-data
+               (gtfs/feed-messages->txns
+                {:agency agency
+                 :query query
+                 :get-additional-fields
+                 (fn [trip]
+                   {:direction (-> trip
+                                   (.getExtension NyctSubway/nyctTripDescriptor)
+                                   .getDirection
+                                   .toString)})}))))
 
 (defn- load-trip [txns query route]
   (tufte/p ::load-trip
-           (doall (map #(->> % gtfs/trip-update->txn (s/put! txns))
-                       (trip-updates query route)))))
+           (doall
+            (map (fn [tx]
+                   (s/put! txns tx))
+                 (trip-txns query route)))
+
+           ))
 
 (defn- load-trips [txns query]
   @(apply d/zip
@@ -100,6 +105,7 @@
            (println "Loading MTA data")
            (load-static txns)
            (load-trips txns query)
+           (s/close! txns)
            (println "Done loading MTA data")))
 
 (comment

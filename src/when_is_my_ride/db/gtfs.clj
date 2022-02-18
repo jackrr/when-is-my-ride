@@ -8,59 +8,67 @@
   (when (not-empty id)
     (str prefix "-" id)))
 
-(defn feed-messages->trip-updates [feed {:keys [get-additional-fields agency query]}]
-  (tufte/p ::feed-messages->trip-updates
-           (let [->id (partial id-with-prefix agency)]
-             (for [i (range (.getEntityCount feed))
-                   :let [tu (-> feed (.getEntity i) .getTripUpdate)
-                         trip (some-> tu .getTrip)
-                         trip-id (-> trip .getTripId ->id)
-                         route-id (if (.hasRouteId trip)
-                                    (-> trip .getRouteId ->id)
-                                    (first (query '[:find [?rid]
-                                                    :in $ ?tid
-                                                    :where
-                                                    [?t :trip/id ?tid]
-                                                    [?t :route ?r]
-                                                    [?r :route/id ?rid]]
-                                                  trip-id)))]
-                   :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
-               (cond-> {:agency-id agency
-                        :trip-id trip-id
-                        :route-id route-id
-                        :stops (map (fn [stop]
-                                      (let [sid (-> stop .getStopId ->id)
-                                            at (-> stop .getArrival .getTime)]
-                                        {:stop-id sid
-                                         :arrival-time at
-                                         :ts-id (->id (str "ts-" at "-" sid))}))
-                                    (.getStopTimeUpdateList tu))}
-                 (some? get-additional-fields)
-                 (merge (get-additional-fields trip)))))))
-
 (defn trip-update->txn [{:keys [agency-id direction route-id trip-id stops]}]
-  (conj
-   (flatten (map
-             (fn [{:keys [stop-id arrival-time ts-id]}]
-               [(cond-> {:stop/id stop-id
-                         :trip [:trip/id trip-id]}
-                  (some? route-id)
-                  (assoc :routes [:route/id route-id]))
-                (cond-> {:trip-stop/id ts-id
-                         :at arrival-time
-                         :agency [:agency/id agency-id]
-                         :stop [:stop/id stop-id]
-                         :trip [:trip/id trip-id]}
-                  (some? route-id)
-                  (assoc :route [:route/id route-id]))])
-             stops))
-   (cond-> {:trip/id trip-id}
-     (some? route-id)
-     (assoc :route [:route/id route-id])
-     (some? direction)
-     (assoc :direction direction))
-   {:route/id route-id
-    :agency [:agency/id agency-id]}))
+  (tufte/p ::trip-update->txn
+           (conj
+            (flatten (map
+                      (fn [{:keys [stop-id arrival-time ts-id]}]
+                        [(cond-> {:stop/id stop-id
+                                  :trip [:trip/id trip-id]}
+                           (some? route-id)
+                           (assoc :routes [:route/id route-id]))
+                         (cond-> {:trip-stop/id ts-id
+                                  :at arrival-time
+                                  :agency [:agency/id agency-id]
+                                  :stop [:stop/id stop-id]
+                                  :trip [:trip/id trip-id]}
+                           (some? route-id)
+                           (assoc :route [:route/id route-id]))])
+                      stops))
+            (cond-> {:trip/id trip-id}
+              (some? route-id)
+              (assoc :route [:route/id route-id])
+              (some? direction)
+              (assoc :direction direction))
+            {:route/id route-id
+             :agency [:agency/id agency-id]})))
+
+(defn- route-id [query trip-id]
+  (tufte/p ::route-id-no-cache
+           (first (query '[:find [?rid]
+                           :in $ ?tid
+                           :where
+                           [?t :trip/id ?tid]
+                           [?t :route ?r]
+                           [?r :route/id ?rid]]
+                         trip-id))))
+
+(defn feed-messages->txns [feed {:keys [get-additional-fields agency query]}]
+  (tufte/p ::feed-messages->txns
+           (map
+            trip-update->txn
+            (let [->id (partial id-with-prefix agency)]
+              (for [i (range (.getEntityCount feed))
+                    :let [tu (-> feed (.getEntity i) .getTripUpdate)
+                          trip (some-> tu .getTrip)
+                          trip-id (-> trip .getTripId ->id)
+                          route-id (if (.hasRouteId trip)
+                                     (-> trip .getRouteId ->id)
+                                     (route-id query trip-id))]
+
+                    :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
+                (cond-> {:agency-id agency
+                         :trip-id trip-id
+                         :route-id route-id
+                         :stops (map (fn [stop]
+                                       (let [sid (-> stop .getStopId ->id)
+                                             at (-> stop .getArrival .getTime)]
+                                         {:stop-id sid
+                                          :arrival-time at
+                                          :ts-id (->id (str "ts-" at "-" sid))}))
+                                     (.getStopTimeUpdateList tu))}
+                  (some? get-additional-fields)
+                  (merge (get-additional-fields trip))))))))
 
 (defn- process-file [fname processor]
   (with-open [reader (-> fname io/resource io/reader)]

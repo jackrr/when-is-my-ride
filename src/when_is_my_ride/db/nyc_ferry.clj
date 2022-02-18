@@ -2,7 +2,8 @@
   (:import [com.google.transit.realtime GtfsRealtime$FeedMessage])
   (:require [manifold.stream :as s]
             [hato.client :as hc]
-            [when-is-my-ride.db.gtfs :as gtfs]))
+            [when-is-my-ride.db.gtfs :as gtfs]
+            [taoensso.tufte :as tufte]))
 
 (def agency "nyc-ferry")
 
@@ -13,20 +14,23 @@
   (gtfs/read-trips txns "nyc-ferry/trips.txt" agency))
 
 (defn- load-trips [txns query]
-  (doall
-   (map #(->> % gtfs/trip-update->txn (s/put! txns))
-        (-> (hc/get
-             "http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate"
-             {:as :byte-array})
-            :body
-            GtfsRealtime$FeedMessage/parseFrom
-            (gtfs/feed-messages->trip-updates {:agency agency :query query})))))
+  (tufte/p ::load-trips
+           (doall
+            (map #(s/put! txns %)
+                 (-> (hc/get
+                      "http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate"
+                      {:as :byte-array})
+                     :body
+                     GtfsRealtime$FeedMessage/parseFrom
+                     (gtfs/feed-messages->txns {:agency agency :query query}))))))
 
 (defn load-all [txns query]
-  (println "Loading NYC Ferry data")
-  (load-static txns)
-  (load-trips txns query)
-  (println "Done loading NYC Ferry data"))
+  (tufte/p ::load-all
+           (println "Loading NYC Ferry data")
+           (load-static txns)
+           (load-trips txns query)
+           (s/close! txns)
+           (println "Done loading NYC Ferry data")))
 
 (comment
   (-> (hc/get
