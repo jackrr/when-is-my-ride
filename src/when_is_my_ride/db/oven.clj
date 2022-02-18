@@ -55,30 +55,22 @@
                (ds/reset-conn! conn @next)
                (println "DB refresh complete")))))
 
-(def ^:private loading-next-conn (atom nil))
+(def ^:private hot-lock (Object.))
 
 (defn ensure-hot
   ([] (ensure-hot STALE_THRESHOLD))
   ([threshold]
-   (println "Start of ensure hot")
-   (d/chain
-    @loading-next-conn
-    (fn [_]
-      (println "Have lock, refreshing")
-      (let [last-initialized
-            (some-> (ds/q '[:find (max ?iat)
-                            :where
-                            [_ :initialized-at ?iat]]
-                          @conn)
-                    first
-                    first)]
-        (when (or (not last-initialized)
-                  (< (+ last-initialized threshold) (System/currentTimeMillis)))
-          (let [deferred (refresh-db!)]
-            (reset! loading-next-conn deferred)
-            @(d/chain deferred
-                      (fn [_]
-                        (reset! loading-next-conn nil))))))))))
+   (locking hot-lock
+     (let [last-initialized
+           (some-> (ds/q '[:find (max ?iat)
+                           :where
+                           [_ :initialized-at ?iat]]
+                         @conn)
+                   first
+                   first)]
+       (when (or (not last-initialized)
+                 (< (+ last-initialized threshold) (System/currentTimeMillis)))
+         @(refresh-db!))))))
 
 (defn get-db
   "Provide conn to db of transit data, block on refresh if older than threshold"
