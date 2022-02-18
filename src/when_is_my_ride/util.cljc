@@ -15,6 +15,11 @@
           recurred
           (cons next recurred)))))))
 
+(defn do-every [ms f]
+  #?(:clj (future (while true (do (Thread/sleep ms)
+                                  (f))))
+     :cljs (js/setInterval f ms)))
+
 (defn find-first [f coll]
   (first (filter f coll)))
 

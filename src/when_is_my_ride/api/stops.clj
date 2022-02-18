@@ -4,7 +4,9 @@
             [when-is-my-ride.util :refer [collect-deep distinct-p]]))
 
 (defn stops-for [query]
-  (let [entities (->> (db/q '[:find ?root ?match-id ?match-name
+  (let [entities (->> (db/q
+                       {:stale-ok? true}
+                       '[:find ?root ?match-id ?match-name
                               :in $ ?name-like %
                               :where
                               [?s :name ?match-name]
@@ -23,6 +25,7 @@
     (->> entities
          (map :eid)
          (db/pull-many
+          {:stale-ok? true}
           '[:db/id
             :stop/id
             :name
