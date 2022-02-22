@@ -9,8 +9,10 @@
           :at (nth res 1)
           :route-id (nth res 2)
           :direction (nth res 3)
-          :destination (nth res 4)})
-       (db/q '[:find ?tsid ?at ?rid ?dir ?dest
+          :destination (let [dest (nth res 4)
+                             tname (nth res 5)]
+                         (if (not-empty tname) tname dest))})
+       (db/q '[:find ?tsid ?at ?rid ?dir ?dest ?tname
                :in $ ?stop-id ?now ?max %
                :where
                [?s :stop/id ?stop-id]
@@ -22,6 +24,7 @@
                [?ts :trip-stop/id ?tsid]
                [?ts :trip ?t]
                [(get-else $ ?t :destination "") ?dest]
+               [(get-else $ ?t :name "") ?tname]
                [?t :direction ?dir]
                [?ts :route ?r]
                [?r :route/id ?rid]]

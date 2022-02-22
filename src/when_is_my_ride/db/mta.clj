@@ -11,6 +11,7 @@
             [manifold.stream :as s]
             [when-is-my-ride.env :as env]
             [when-is-my-ride.db.gtfs :as gtfs]
+            [when-is-my-ride.db.mta.trip :as trip]
             [taoensso.tufte :as tufte]
             [datascript.core :as ds]))
 
@@ -48,7 +49,8 @@
                  :get-additional-fields
                  (fn [trip]
                    (let [ext (.getExtension trip NyctSubway/nyctTripDescriptor)]
-                     {:direction (-> ext .getDirection .toString)
+                     {:trip-name (-> trip .getTripId trip/get-name)
+                      :direction (-> ext .getDirection .toString)
                       :destination (some-> ext
                                            .getTrainId
                                            dest-from-train-id)}))}))))
