@@ -8,8 +8,9 @@
          {:id (first res)
           :at (nth res 1)
           :route-id (nth res 2)
-          :direction (nth res 3)})
-       (db/q '[:find ?tsid ?at ?rid ?d
+          :direction (nth res 3)
+          :destination (nth res 4)})
+       (db/q '[:find ?tsid ?at ?rid ?dir ?dest
                :in $ ?stop-id ?now ?max %
                :where
                [?s :stop/id ?stop-id]
@@ -20,7 +21,8 @@
                [(> ?max ?at)]
                [?ts :trip-stop/id ?tsid]
                [?ts :trip ?t]
-               [?t :direction ?d]
+               [(get-else $ ?t :destination "") ?dest]
+               [?t :direction ?dir]
                [?ts :route ?r]
                [?r :route/id ?rid]]
              id
