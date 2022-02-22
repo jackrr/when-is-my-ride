@@ -8,13 +8,17 @@
 
 (def agency "nyc-ferry")
 
-(defn- load-static [txns]
+(defn load-static [txns _]
+  (debug "Loading static NYC ferry data")
   (s/put! txns [{:agency/id agency}])
   (gtfs/read-stops txns "nyc-ferry/stops.txt" agency)
   (gtfs/read-routes txns "nyc-ferry/routes.txt" agency)
-  (gtfs/read-trips txns "nyc-ferry/trips.txt" agency))
+  (gtfs/read-trips txns "nyc-ferry/trips.txt" agency)
+  (s/close! txns)
+  (debug "Done loading static NYC ferry data"))
 
-(defn- load-trips [txns query]
+(defn load-realtime [txns query]
+  (debug "Loading realtime NYC Ferry data")
   (tufte/p ::load-trips
            (doall
             (map #(s/put! txns %)
@@ -23,15 +27,9 @@
                       {:as :byte-array})
                      :body
                      GtfsRealtime$FeedMessage/parseFrom
-                     (gtfs/feed-messages->txns {:agency agency :query query}))))))
-
-(defn load-all [txns query]
-  (tufte/p ::load-all
-           (debug "Loading NYC Ferry data")
-           (load-static txns)
-           (load-trips txns query)
-           (s/close! txns)
-           (debug "Done loading NYC Ferry data")))
+                     (gtfs/feed-messages->txns {:agency agency :query query}))))
+           (s/close! txns))
+  (debug "Done loading realtime NYC ferry data"))
 
 (comment
   (-> (hc/get

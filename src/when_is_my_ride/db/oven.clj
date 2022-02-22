@@ -13,47 +13,56 @@
 (def STALE_THRESHOLD (or (env-seconds-duration "DB_STALE_THRESHOLD_SECONDS")
                          (* 1000 50)))
 
-(defn new-empty []
-  (ds/create-conn schema))
+(def ^:private static (atom nil))
 
-(def ^:private conn (new-empty))
+(def ^:private THE_CONN (ds/create-conn schema))
+
+(defn- load-into [conn loaders]
+  (let [query (fn [& args] (apply (partial ds/q (first args) @conn) (rest args)))
+        txns (s/stream)
+        to-insert (s/buffer count 1500 txns)
+        insertion-streams (map (fn [loader]
+                                 (let [stream (s/stream)]
+                                   (s/connect stream txns {:downstream? false})
+                                   (d/future (loader stream query))
+                                   stream)) loaders)
+        count (atom 0)]
+    (while (not (and (every? s/drained? insertion-streams)
+                     (= 0 (-> to-insert s/description :buffer-size))))
+      (let [msg @(s/try-take! to-insert ::drained 1000 ::timeout)]
+        (cond (= msg ::drained)
+              (debug "to-insert buffer drained")
+
+              (= msg ::timeout)
+              (info "Timeout on to-insert buffer")
+
+              :else
+              (ds/transact! conn msg))
+        (when (= (mod @count 500) 0)
+          (debug "Processed " @count " txns"))
+        (swap! count inc)))))
+
+(defn- static-db
+  "Getter for pre-loaded static db. Blocks and loads if not already loaded."
+  []
+  (if (some? @static)
+    @static
+    (do
+      (info "Initializing static data")
+      (let [conn (ds/create-conn schema)]
+        (load-into conn [mta/load-static nyc-ferry/load-static])
+        (reset! static @conn)
+        (info "Done initializing static data")
+        @conn))))
 
 (defn- refresh-db! []
   (info "Reloading DB")
   (d/future
     (tufte/p ::refresh-db!
-             (let [next (new-empty)
-                   query (fn [& args] (apply (partial ds/q (first args) @next) (rest args)))
-                   mta-txns (s/stream)
-                   ferry-txns (s/stream)
-                   txns (s/stream)
-                   to-insert (s/buffer count 1500 txns)]
-               (s/connect mta-txns txns {:downstream? false})
-               (s/connect ferry-txns txns {:downstream? false})
-               (d/future (mta/load-all mta-txns query))
-               (d/future (nyc-ferry/load-all ferry-txns query))
-               (let [count (atom 0)]
-                 (while (not (and (s/drained? mta-txns)
-                                  (s/drained? ferry-txns)
-                                  (= 0 (-> to-insert s/description :buffer-size))))
-                   (let [msg @(s/try-take! to-insert ::drained 1000 ::timeout)]
-                     (swap! count inc)
-                     (when (= (mod @count 500) 0)
-                       (debug "Processed " @count " txns"))
-
-                     (cond
-                       (= msg ::drained)
-                       (println msg)
-
-                       (= msg ::timeout)
-                       (println msg)
-
-                       :else
-                       (ds/transact! next msg))))
-                 (info "Processed " @count " txns"))
-
+             (let [next (ds/conn-from-db (static-db))]
+               (load-into next [mta/load-realtime nyc-ferry/load-realtime])
                (ds/transact! next [{:initialized-at (System/currentTimeMillis)}])
-               (ds/reset-conn! conn @next)
+               (ds/reset-conn! THE_CONN @next)
                (info "DB refresh complete")))))
 
 (defn- cold?
@@ -63,7 +72,7 @@
          (some-> (ds/q '[:find (max ?iat)
                          :where
                          [_ :initialized-at ?iat]]
-                       @conn)
+                       @THE_CONN)
                  first
                  first)]
      (or (not last-initialized)
@@ -73,7 +82,7 @@
   (some? (some-> (ds/q '[:find (max ?iat)
                          :where
                          [_ :initialized-at ?iat]]
-                       @conn)
+                       @THE_CONN)
                  first
                  first)))
 
@@ -92,7 +101,7 @@
    (if stale-ok?
      (when (not (initialized?)) (ensure-hot))
      (when cold? (ensure-hot)))
-   @conn))
+   @THE_CONN))
 
 (def ^:private keep-hot-interval (atom nil))
 (def ^:private keep-hot-killer (atom nil))
@@ -116,7 +125,7 @@
               (stop-current!)))))
 
 (comment
-  (refresh-db!)
+  @(refresh-db!)
 
   (tufte/add-basic-println-handler! {:format-pstats-opts {:columns [:n-calls :p50 :mean :clock :total]}})
   (tufte/profile

@@ -60,11 +60,15 @@
                    (s/put! txns tx))
                  (trip-txns query route)))))
 
-(defn- load-trips [txns query]
+(defn load-realtime [txns query]
+  (debug "Loading realtime MTA data")
   @(apply d/zip
-          (map #(d/future (load-trip txns query %)) routes)))
+          (map #(d/future (load-trip txns query %)) routes))
+  (debug "Done loading realtime MTA data")
+  (s/close! txns))
 
-(defn- load-static [txns]
+(defn load-static [txns _]
+  (debug "Loading static MTA data")
   (tufte/p ::load-static
            (s/put! txns [{:agency/id agency}])
            (gtfs/read-stops txns "mta/stops.txt" agency)
@@ -106,15 +110,9 @@
                                :stop/id id
                                :agency [:agency/id agency]
                                :parent [:stop/id complex-id]}])))
-                 structured))))))
-
-(defn load-all [txns query]
-  (tufte/p ::load-all
-           (debug "Loading MTA data")
-           (load-static txns)
-           (load-trips txns query)
-           (s/close! txns)
-           (debug "Done loading MTA data")))
+                 structured))))
+           (s/close! txns))
+  (debug "Done loading static MTA data"))
 
 (comment
 
