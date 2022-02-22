@@ -21,14 +21,27 @@
 (rf/reg-sub ::routes
             (fn [_ _] (rf/subscribe [::stop]))
             (fn [stop _] (:routes stop)))
+(rf/reg-sub ::all-directions
+            (fn [_ _] (rf/subscribe [::arrivals]))
+            (fn [arrivals _]
+              (->> arrivals
+                   (map :direction)
+                   distinct
+                   sort)))
 (rf/reg-sub ::next-n-arrivals
             (fn [_ _] [(rf/subscribe [::routes])
                        (rf/subscribe [::arrivals])])
-            (fn [[routes arrivals] [_ n]]
-              (->> arrivals
-                   (sort-by :at)
-                   (take n)
-                   (map (fn [arr] (assoc arr :route (get routes (:route-id arr))))))))
+            (fn [[routes arrivals] [_ n & args]]
+              (let [direction (first args)]
+                (cond->> arrivals
+                  :always
+                  (sort-by :at)
+                  (some? direction)
+                  (filter #(= (:direction %) direction))
+                  :always
+                  (take n)
+                  :always
+                  (map (fn [arr] (assoc arr :route (get routes (:route-id arr)))))))))
 
 (rf/reg-event-db
  ::handle-stop-result
@@ -47,10 +60,10 @@
                             :on-success [::handle-stop-result]}]
     :db (assoc db ::stop default-db)}))
 
-(defn arrival [now {:keys [id route at direction]}]
+(defn arrival [now {:keys [id route at destination direction]}]
   [:div {:key id :className "my-2 flex gap-4"}
    (route/icon route)
-   [:p direction]
+   [:p (if (not-empty destination) destination direction)]
    [:p (let [min (-> at
                      (* 1000)
                      (- now)
@@ -61,12 +74,20 @@
 (defn view [_]
   [:div {:className "container mx-auto max-w-md px-4"}
    [:h2 {:className "text-xl mb-4"} @(rf/subscribe [::stop-name])]
-   (if @(rf/subscribe [::loading])
-     [ui/loading]
-     (let [arrivals @(rf/subscribe [::next-n-arrivals 20])]
-       (if (= 0 (count arrivals))
-         [:p {:className "italic"} "No upcoming departures found"]
-         (map (partial arrival (.valueOf (js/Date.))) arrivals))))])
+   [:div {:className "flex justify-between"}
+    (if @(rf/subscribe [::loading])
+      [ui/loading]
+      (let [none-found [:p {:className "italic"} "No upcoming departures found"]
+            all (doall
+                 (map (fn [direction]
+                        [:div {:key direction}
+                         [:h3 direction]
+                         (let [arrivals @(rf/subscribe [::next-n-arrivals 20 direction])]
+                           (if (= 0 (count arrivals))
+                             none-found
+                             (map (partial arrival (.valueOf (js/Date.))) arrivals)))])
+                      @(rf/subscribe [::all-directions])))]
+        (if (empty? all) none-found all)))]])
 
 (def route {:name :stop
             :path "/stops/:stop-id"
