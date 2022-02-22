@@ -3,17 +3,12 @@
    [reagent.dom :as rdom]
    [re-frame.core :as re-frame]
    [when-is-my-ride.client.app :as app]
-   [when-is-my-ride.client.config :as config]
    [when-is-my-ride.client.db :as db]))
 
 (re-frame/reg-event-db
  ::initialize-db
  (fn [_ _]
    db/default-db))
-
-(defn dev-setup []
-  (when config/debug?
-    (println "dev mode")))
 
 (defn ^:dev/after-load mount-root []
   (re-frame/clear-subscription-cache!)
@@ -23,5 +18,4 @@
 
 (defn init []
   (re-frame/dispatch-sync [::initialize-db])
-  (dev-setup)
   (mount-root))

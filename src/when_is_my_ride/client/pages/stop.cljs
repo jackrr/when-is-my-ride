@@ -1,6 +1,7 @@
 (ns when-is-my-ride.client.pages.stop
   (:require [re-frame.core :as rf]
             [when-is-my-ride.client.api :as api]
+            [when-is-my-ride.client.config :as config]
             [when-is-my-ride.client.route :as route]
             [when-is-my-ride.client.ui :as ui]))
 
@@ -59,14 +60,18 @@
          (if (> 1 min) "Now" (str min " min")))]])
 
 (defn view [_]
-  [:div {:className "container mx-auto max-w-md px-4"}
-   [:h2 {:className "text-xl mb-4"} @(rf/subscribe [::stop-name])]
-   (if @(rf/subscribe [::loading])
-     [ui/loading]
-     (let [arrivals @(rf/subscribe [::next-n-arrivals 20])]
-       (if (= 0 (count arrivals))
-         [:p {:className "italic"} "No upcoming departures found"]
-         (map (partial arrival (.valueOf (js/Date.))) arrivals))))])
+  [:<>
+   (when-let [name @(rf/subscribe [::stop-name])]
+     [config/site-meta {:title (str "WIMR: " name)
+                        :description (str "Upcoming arrivals for " name)}])
+   [:div {:className "container mx-auto max-w-md px-4"}
+    [:h2 {:className "text-xl mb-4"} @(rf/subscribe [::stop-name])]
+    (if @(rf/subscribe [::loading])
+      [ui/loading]
+      (let [arrivals @(rf/subscribe [::next-n-arrivals 20])]
+        (if (= 0 (count arrivals))
+          [:p {:className "italic"} "No upcoming departures found"]
+          (map (partial arrival (.valueOf (js/Date.))) arrivals))))]])
 
 (def route {:name :stop
             :path "/stops/:stop-id"
