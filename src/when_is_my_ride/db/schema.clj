@@ -18,6 +18,7 @@
    :type {:db/cardinality :db.cardinality/one}
    :color {:db/cardinality :db.cardinality/one}
    :direction {:db/cardinality :db.cardinality/one}
+   :destination {:db/cardinality :db.cardinality/one}
    :at {:db/cardinality :db.cardinality/one}
 
    :stop {:db/valueType :db.type/ref

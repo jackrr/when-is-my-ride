@@ -8,7 +8,7 @@
   (when (not-empty id)
     (str prefix "-" id)))
 
-(defn trip-update->txn [{:keys [agency-id direction route-id trip-id stops]}]
+(defn trip-update->txn [{:keys [agency-id direction destination route-id trip-id stops]}]
   (tufte/p ::trip-update->txn
            (conj
             (flatten (map
@@ -29,7 +29,9 @@
               (some? route-id)
               (assoc :route [:route/id route-id])
               (some? direction)
-              (assoc :direction direction))
+              (assoc :direction direction)
+              (some? destination)
+              (assoc :destination destination))
             {:route/id route-id
              :agency [:agency/id agency-id]})))
 
@@ -55,7 +57,6 @@
                           route-id (if (.hasRouteId trip)
                                      (-> trip .getRouteId ->id)
                                      (route-id query trip-id))]
-
                     :when (and (some? tu) (some? trip) (< 0 (.getStopTimeUpdateCount tu)))]
                 (cond-> {:agency-id agency
                          :trip-id trip-id
@@ -133,7 +134,8 @@
            route-id-idx (.indexOf headers "route_id")
            route-id-idx (if (= -1 route-id-idx) 0 route-id-idx) ; handle UTF8 signature mucking up first header
            trip-id-idx (.indexOf headers "trip_id")
-           direction-idx (.indexOf headers "direction_id")]
+           direction-idx (.indexOf headers "direction_id")
+           headsign-idx (.indexOf headers "trip_headsign")]
       ;; Doall so reader can close
        (doall
         (map
@@ -142,5 +144,6 @@
                    [{:trip/id (->id (get trip trip-id-idx))
                      :route [:route/id (->id (get trip route-id-idx))]
                      :direction (get trip direction-idx)
-                     :agency [:agency/id agency]}]))
+                     :agency [:agency/id agency]
+                     :name (get trip headsign-idx)}]))
          trips))))))

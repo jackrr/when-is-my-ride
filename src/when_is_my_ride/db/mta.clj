@@ -11,7 +11,8 @@
             [manifold.stream :as s]
             [when-is-my-ride.env :as env]
             [when-is-my-ride.db.gtfs :as gtfs]
-            [taoensso.tufte :as tufte]))
+            [taoensso.tufte :as tufte]
+            [datascript.core :as ds]))
 
 (def agency "mta")
 
@@ -30,6 +31,13 @@
                :body
                (GtfsRealtime$FeedMessage/parseFrom registry))))
 
+(defn- dest-from-train-id [train-id]
+  (let [match (re-find #".*\/(\w{3})$" train-id)]
+    (when-not match (println "No match for " train-id)))
+  (->> train-id
+       (re-find #".*\/(\w{3})$")
+       last))
+
 (defn- trip-txns [query route]
   (tufte/p ::trip-txns
            (-> route
@@ -39,25 +47,28 @@
                  :query query
                  :get-additional-fields
                  (fn [trip]
-                   {:direction (-> trip
-                                   (.getExtension NyctSubway/nyctTripDescriptor)
-                                   .getDirection
-                                   .toString)})}))))
+                   (let [ext (.getExtension trip NyctSubway/nyctTripDescriptor)]
+                     {:direction (-> ext .getDirection .toString)
+                      :destination (some-> ext
+                                           .getTrainId
+                                           dest-from-train-id)}))}))))
 
 (defn- load-trip [txns query route]
   (tufte/p ::load-trip
            (doall
             (map (fn [tx]
                    (s/put! txns tx))
-                 (trip-txns query route)))
+                 (trip-txns query route)))))
 
-           ))
-
-(defn- load-trips [txns query]
+(defn load-realtime [txns query]
+  (debug "Loading realtime MTA data")
   @(apply d/zip
-          (map #(d/future (load-trip txns query %)) routes)))
+          (map #(d/future (load-trip txns query %)) routes))
+  (debug "Done loading realtime MTA data")
+  (s/close! txns))
 
-(defn- load-static [txns]
+(defn load-static [txns _]
+  (debug "Loading static MTA data")
   (tufte/p ::load-static
            (s/put! txns [{:agency/id agency}])
            (gtfs/read-stops txns "mta/stops.txt" agency)
@@ -99,15 +110,9 @@
                                :stop/id id
                                :agency [:agency/id agency]
                                :parent [:stop/id complex-id]}])))
-                 structured))))))
-
-(defn load-all [txns query]
-  (tufte/p ::load-all
-           (debug "Loading MTA data")
-           (load-static txns)
-           (load-trips txns query)
-           (s/close! txns)
-           (debug "Done loading MTA data")))
+                 structured))))
+           (s/close! txns))
+  (debug "Done loading static MTA data"))
 
 (comment
 
@@ -120,7 +125,15 @@
   (.getRouteId trip) ; 'A'
   (def nyct-trip (.getExtension trip NyctSubway/nyctTripDescriptor))
   (.getDirection nyct-trip) ; SOUTH or NORTH
-                            ;
+
+  (do
+    (require 'datascript.core)
+    (require 'when-is-my-ride.db.schema)
+    (let [db (ds/create-conn when-is-my-ride.db.schema/schema)
+          query (fn [& args] (apply (partial datascript.core/q (first args) @db) (rest args)))]
+      (first (trip-txns query "gtfs-ace"))))
+
+  (dest-from-train-id "1A 1005 FAR/207")
   (with-open
    [out (clojure.java.io/output-stream "ace-feed-sample.txt")]
     (.write out (:body (hc/get "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
