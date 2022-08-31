@@ -8,7 +8,7 @@
   (when (not-empty id)
     (str prefix "-" id)))
 
-(defn trip-update->txn [{:keys [agency-id direction destination route-id trip-id stops]}]
+(defn trip-update->txn [{:keys [agency-id direction destination trip-name route-id trip-id stops]}]
   (tufte/p ::trip-update->txn
            (conj
             (flatten (map
@@ -28,10 +28,15 @@
             (cond-> {:trip/id trip-id}
               (some? route-id)
               (assoc :route [:route/id route-id])
+
               (some? direction)
               (assoc :direction direction)
+
               (some? destination)
-              (assoc :destination destination))
+              (assoc :destination destination)
+
+              (some? trip-name)
+              (assoc :trip-name trip-name))
             {:route/id route-id
              :agency [:agency/id agency-id]})))
 
@@ -71,7 +76,7 @@
                   (some? get-additional-fields)
                   (merge (get-additional-fields trip))))))))
 
-(defn- process-file [fname processor]
+(defn process-file [fname processor]
   (with-open [reader (-> fname io/resource io/reader)]
     (processor (csv/read-csv reader))))
 
