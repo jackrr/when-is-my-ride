@@ -1,4 +1,4 @@
-FROM openjdk:17-buster AS builder
+FROM eclipse-temurin:21 AS builder
 MAINTAINER Jack Ratner <jackratner@gmail.com>
 
 RUN apt-get install -y curl \
@@ -20,7 +20,7 @@ COPY protoc/ ./protoc
 RUN npx shadow-cljs release :app
 RUN lein uberjar
 
-FROM openjdk:17-alpine
+FROM eclipse-temurin:21-alpine
 
 COPY --from=builder /target/uberjar/when-is-my-ride-0.0.0-standalone.jar when-is-my-ride.jar
 EXPOSE 3000

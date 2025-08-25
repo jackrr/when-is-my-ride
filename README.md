@@ -13,16 +13,15 @@ you'd like to see and we'll go from there.
 
 You'll need a clojure environment and leiningen installed.
 
-### Environment
+### With Docker
 
-Acquire a free MTA access token at https://new.mta.info/developers. In
-development add a file called `resources/secrets.edn` with the following:
+1. `docker build . -t IMAGE_NAME`
+2. `docker run -p 3000:3000 -e ALLOW_ORIGIN=localhost IMAGE_NAME`
 
-``` clojure
-{"MTA_API_KEY" "YOUR_TOKEN_HERE"}
-```
+### Without docker
 
-In production set an `MTA_API_KEY` env var containing the token.
+1. Build the client: `npx shadow-cljs release :app`
+2. Build the jarball: `lein uberjar`
 
 ## Data feeds
 
