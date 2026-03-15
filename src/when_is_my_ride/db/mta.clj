@@ -36,13 +36,13 @@
                :body
                (GtfsRealtime$FeedMessage/parseFrom registry))))
 
-(defn- terminal-name [query tu]
+(defn- terminal-name [stop-names tu]
   (let [stop-times (.getStopTimeUpdateList tu)]
     (when (pos? (.size stop-times))
       (let [last-stop-id (gtfs/id-with-prefix agency (-> stop-times (.get (dec (.size stop-times))) .getStopId))]
-        (ffirst (query '[:find ?n :in $ ?sid :where [?s :stop/id ?sid] [?s :name ?n]] last-stop-id))))))
+        (get stop-names last-stop-id)))))
 
-(defn- trip-txns [query route]
+(defn- trip-txns [stop-names query route]
   (tufte/p ::trip-txns
            (-> route
                fetch-data
@@ -53,19 +53,17 @@
                  (fn [trip tu]
                    (let [ext (.getExtension trip NyctSubway/nyctTripDescriptor)]
                      {:direction (-> ext .getDirection .toString)
-                      :destination (terminal-name query tu)}))}))))
+                      :destination (terminal-name stop-names tu)}))}))))
 
-(defn- load-trip [txns query route]
+(defn- load-trip [txns stop-names query route]
   (tufte/p ::load-trip
-           (doall
-            (map (fn [tx]
-                   (s/put! txns tx))
-                 (trip-txns query route)))))
+           (s/put! txns (into [] cat (trip-txns stop-names query route)))))
 
 (defn load-realtime [txns query]
   (debug "Loading realtime MTA data")
-  @(apply d/zip
-          (map #(d/future (load-trip txns query %)) routes))
+  (let [stop-names (into {} (query '[:find ?sid ?n :where [?s :stop/id ?sid] [?s :name ?n]]))]
+    @(apply d/zip
+            (map #(d/future (load-trip txns stop-names query %)) routes)))
   (debug "Done loading realtime MTA data")
   (s/close! txns))
 

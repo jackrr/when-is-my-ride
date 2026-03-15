@@ -20,14 +20,14 @@
 (defn load-realtime [txns query]
   (debug "Loading realtime NYC Ferry data")
   (tufte/p ::load-trips
-           (doall
-            (map #(s/put! txns %)
-                 (-> (hc/get
-                      "http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate"
-                      {:as :byte-array})
-                     :body
-                     GtfsRealtime$FeedMessage/parseFrom
-                     (gtfs/feed-messages->txns {:agency agency :query query}))))
+           (s/put! txns
+                   (into [] cat
+                         (-> (hc/get
+                              "http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate"
+                              {:as :byte-array})
+                             :body
+                             GtfsRealtime$FeedMessage/parseFrom
+                             (gtfs/feed-messages->txns {:agency agency :query query}))))
            (s/close! txns))
   (debug "Done loading realtime NYC ferry data"))
 
