@@ -11,8 +11,9 @@
           :direction (nth res 3)
           :destination (nth res 4)
           :headsign (nth res 5)
-          :stop-name (nth res 6)})
-       (db/q '[:find ?tsid ?at ?rid ?dir ?dest ?headsign ?aname
+          :stop-name (nth res 6)
+          :stop-id (nth res 7)})
+       (db/q '[:find ?tsid ?at ?rid ?dir ?dest ?headsign ?aname ?aid
                :in $ ?stop-id ?now ?max %
                :where
                [?s :stop/id ?stop-id]
@@ -28,7 +29,8 @@
                [(get-else $ ?t :name "") ?headsign]
                [?ts :route ?r]
                [?r :route/id ?rid]
-               [(get-else $ ?a :name "") ?aname]]
+               [(get-else $ ?a :name "") ?aname]
+               [?a :stop/id ?aid]]
              id
              (/ (System/currentTimeMillis) 1000)
              (+ (/ (System/currentTimeMillis) 1000) (* 60 60)) ; 60 min from now

@@ -1,5 +1,6 @@
 (ns when-is-my-ride.client.pages.stop
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [reagent.core :as r]
             [when-is-my-ride.client.api :as api]
             [when-is-my-ride.client.route :as route]
@@ -40,26 +41,33 @@
 (rf/reg-sub ::direction-groups
             (fn [_ _] (rf/subscribe [::arrivals]))
             (fn [arrivals _]
-              (let [multi-stop? (->> arrivals (map :stop-name) distinct count (< 1))]
+              (let [multi-stop? (->> arrivals (map :stop-id) distinct count (< 1))
+                    unique-names? (->> arrivals (map :stop-name) distinct count (< 1))]
                 (->> arrivals
-                     (group-by (juxt :direction :stop-name))
-                     (map (fn [[[direction stop-name] group]]
-                            {:direction       direction
-                             :stop-name       stop-name
-                             :show-stop-name? multi-stop?
-                             :route-ids       (->> group (map :route-id) distinct sort)}))
-                     (sort-by (juxt :stop-name :direction))))))
+                     (group-by (juxt :direction :stop-id))
+                     (map (fn [[[direction stop-id] group]]
+                            (let [terminals (->> group (keep display-dest) distinct sort)
+                                  stop-name (:stop-name (first group))]
+                              {:direction       direction
+                               :stop-id         stop-id
+                               :stop-name       stop-name
+                               :show-stop-name? (and multi-stop? unique-names?)
+                               :route-ids       (->> group (map :route-id) distinct sort)
+                               :terminal-label  (if (and (seq terminals) (<= (count terminals) 2))
+                                                  (str "to " (str/join " / " terminals))
+                                                  (format-direction direction))})))
+                     (sort-by (juxt :stop-id :direction))))))
 
 (rf/reg-sub ::next-n-arrivals
             (fn [_ _] [(rf/subscribe [::routes])
                        (rf/subscribe [::arrivals])])
-            (fn [[routes arrivals] [_ n direction stop-name]]
+            (fn [[routes arrivals] [_ n direction stop-id]]
               (cond->> arrivals
                 :always
                 (sort-by :at)
                 (some? direction)
                 (filter #(and (= (:direction %) direction)
-                              (= (:stop-name %) stop-name)))
+                              (= (:stop-id %) stop-id)))
                 :always
                 (take n)
                 :always
@@ -91,12 +99,12 @@
     (let [min (-> at (* 1000) (- now) (/ (* 60 1000)) js/Math.floor)]
       (if (> 1 min) "Now" (str min " min")))]])
 
-(defn platform-card [{:keys [direction stop-name show-stop-name? route-ids]}]
+(defn platform-card [{:keys [direction stop-id stop-name show-stop-name? route-ids terminal-label]}]
   (let [expanded? (r/atom false)]
     (fn []
       (let [now (.valueOf (js/Date.))
             routes @(rf/subscribe [::routes])
-            all-arrivals @(rf/subscribe [::next-n-arrivals 20 direction stop-name])
+            all-arrivals @(rf/subscribe [::next-n-arrivals 20 direction stop-id])
             shown (if @expanded? all-arrivals (take default-shown all-arrivals))]
         [:div {:className "border border-gray-200 rounded-lg p-4"}
          [:div {:className "mb-2 pb-2 border-b border-gray-200"}
@@ -105,7 +113,7 @@
           [:div {:className "flex items-center gap-2 flex-wrap"}
            (for [rid route-ids]
              ^{:key rid} (route/icon (get routes rid)))
-           [:span {:className "text-sm font-medium"} (format-direction direction)]]]
+           [:span {:className "text-sm font-medium"} terminal-label]]]
          (if (empty? all-arrivals)
            [:p {:className "italic text-sm"} "No upcoming departures"]
            [:div
@@ -124,8 +132,8 @@
        (if (empty? groups)
          [:p {:className "italic"} "No upcoming departures found"]
          [:div {:className "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}
-          (for [{:keys [direction stop-name] :as group} groups]
-            ^{:key (str direction stop-name)}
+          (for [{:keys [direction stop-id] :as group} groups]
+            ^{:key (str direction stop-id)}
             [platform-card group])])))])
 
 (def route {:name :stop
