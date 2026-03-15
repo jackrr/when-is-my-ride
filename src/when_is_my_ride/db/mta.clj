@@ -21,22 +21,26 @@
     (NyctSubway/registerAllExtensions reg)
     reg))
 
+(def ^:private http-client (hc/build-http-client {:connect-timeout 10000
+                                                   :redirect-policy :always}))
+
 (def routes
   ["gtfs-ace" "gtfs-bdfm" "gtfs-g" "gtfs-jz" "gtfs-nqrw" "gtfs-l" "gtfs" "gtfs-si"])
 
 (defn- fetch-data [route]
   (tufte/p ::fetch-data
            (-> (str "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F" route)
-               (hc/get {:headers {"x-api-key" (or (env/env "MTA_API_KEY") "")} :as :byte-array})
+               (hc/get {:http-client http-client
+                        :headers {"x-api-key" (or (env/env "MTA_API_KEY") "")}
+                        :as :byte-array})
                :body
                (GtfsRealtime$FeedMessage/parseFrom registry))))
 
-(defn- dest-from-train-id [train-id]
-  (let [match (re-find #".*\/(\w{3})$" train-id)]
-    (when-not match (println "No match for " train-id)))
-  (->> train-id
-       (re-find #".*\/(\w{3})$")
-       last))
+(defn- terminal-name [query tu]
+  (let [stop-times (.getStopTimeUpdateList tu)]
+    (when (pos? (.size stop-times))
+      (let [last-stop-id (gtfs/id-with-prefix agency (-> stop-times (.get (dec (.size stop-times))) .getStopId))]
+        (ffirst (query '[:find ?n :in $ ?sid :where [?s :stop/id ?sid] [?s :name ?n]] last-stop-id))))))
 
 (defn- trip-txns [query route]
   (tufte/p ::trip-txns
@@ -46,12 +50,10 @@
                 {:agency agency
                  :query query
                  :get-additional-fields
-                 (fn [trip]
+                 (fn [trip tu]
                    (let [ext (.getExtension trip NyctSubway/nyctTripDescriptor)]
                      {:direction (-> ext .getDirection .toString)
-                      :destination (some-> ext
-                                           .getTrainId
-                                           dest-from-train-id)}))}))))
+                      :destination (terminal-name query tu)}))}))))
 
 (defn- load-trip [txns query route]
   (tufte/p ::load-trip

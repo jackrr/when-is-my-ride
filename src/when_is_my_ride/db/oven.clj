@@ -29,7 +29,7 @@
         count (atom 0)]
     (while (not (and (every? s/drained? insertion-streams)
                      (= 0 (-> to-insert s/description :buffer-size))))
-      (let [msg @(s/try-take! to-insert ::drained 1000 ::timeout)]
+      (let [msg @(s/try-take! to-insert ::drained 100 ::timeout)]
         (cond (= msg ::drained)
               (debug "to-insert buffer drained")
 

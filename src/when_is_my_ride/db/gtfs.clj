@@ -69,7 +69,7 @@
                                           :ts-id (->id (str "ts-" at "-" sid))}))
                                      (.getStopTimeUpdateList tu))}
                   (some? get-additional-fields)
-                  (merge (get-additional-fields trip))))))))
+                  (merge (get-additional-fields trip tu))))))))
 
 (defn- process-file [fname processor]
   (with-open [reader (-> fname io/resource io/reader)]
